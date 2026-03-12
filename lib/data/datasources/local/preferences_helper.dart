@@ -33,6 +33,14 @@ class PreferencesHelper {
 
   String? getUserId() => prefs.getString(AppConstants.keyUserId);
 
+  // ── 登录方式 ──
+  static const String _keyLoginMethod = 'login_method';
+
+  Future<void> setLoginMethod(String method) =>
+      prefs.setString(_keyLoginMethod, method);
+
+  String? getLoginMethod() => prefs.getString(_keyLoginMethod);
+
   // ── 清除所有 ──
   Future<void> clearAll() => prefs.clear();
 }

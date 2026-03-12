@@ -23,7 +23,7 @@ class _SplashPageState extends State<SplashPage> {
   Widget build(BuildContext context) {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
-        if (state is AuthAuthenticated) {
+        if (state is AuthAuthenticated || state is AuthGuest) {
           context.go('/home');
         } else if (state is AuthUnauthenticated || state is AuthError) {
           context.go('/login');

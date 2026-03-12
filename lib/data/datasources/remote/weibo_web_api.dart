@@ -7,6 +7,15 @@ class WeiboWebApi {
 
   WeiboWebApi({required this.dioClient});
 
+  /// 获取推荐时间线（无需登录）
+  Future<Map<String, dynamic>> getRecommendTimeline({int page = 1}) async {
+    final response = await dioClient.webGet(
+      ApiConstants.webHotSearch,
+      queryParameters: {'containerid': '102803', 'page': page},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
   /// 获取热搜榜
   Future<Map<String, dynamic>> getHotSearch() async {
     final response = await dioClient.webGet(
@@ -72,5 +81,17 @@ class WeiboWebApi {
       },
     );
     return response.data as Map<String, dynamic>;
+  }
+
+  /// 获取当前 Cookie 登录用户信息
+  Future<Map<String, dynamic>> getLoggedInUserInfo() async {
+    // 通过 /api/config 获取用户信息
+    final configResponse = await dioClient.webGet('/config');
+    final data = configResponse.data as Map<String, dynamic>;
+    final userInfo = data['data']?['login'] == true
+        ? (data['data']?['user'] as Map<String, dynamic>?)
+        : null;
+    if (userInfo == null) throw Exception('未获取到用户信息，Cookie 可能已过期');
+    return userInfo;
   }
 }
