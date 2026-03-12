@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -18,6 +19,7 @@ enum _WebViewMode { none, oauth, cookie }
 
 class _LoginPageState extends State<LoginPage> {
   _WebViewMode _webViewMode = _WebViewMode.none;
+  bool _isProcessingLogin = false;
   late final WebViewController _oauthController;
   late final WebViewController _cookieController;
 
@@ -47,31 +49,80 @@ class _LoginPageState extends State<LoginPage> {
 
     // Cookie 登录 WebView 控制器
     _cookieController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(onPageFinished: (url) => _checkCookieLogin(url)),
-      );
+      ..setJavaScriptMode(JavaScriptMode.unrestricted);
   }
 
-  /// 检查 Cookie 登录是否成功
-  Future<void> _checkCookieLogin(String url) async {
-    // 用户登录成功后会跳转到 m.weibo.cn 主页
-    if (url.contains('m.weibo.cn') &&
-        !url.contains('login') &&
-        !url.contains('passport')) {
-      // 通过 JS 获取 document.cookie
+  static const _cookieChannel = MethodChannel('com.materialweibo/cookie');
+
+  /// 通过原生 Android CookieManager 获取指定 URL 的所有 cookie（包括 HttpOnly）
+  Future<String?> _getNativeCookie(String url) async {
+    try {
+      final result = await _cookieChannel.invokeMethod<String>('getCookie', {
+        'url': url,
+      });
+      return result;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 手动触发 Cookie 检测（用户按下按钮时调用）
+  Future<void> _manualCheckCookie() async {
+    if (_isProcessingLogin) return;
+
+    // 尝试从多个微博域名读取 cookie（原生 API 可读 HttpOnly cookie）
+    final urls = [
+      'https://weibo.com',
+      'https://m.weibo.cn',
+      'https://weibo.cn',
+      'https://passport.weibo.cn',
+    ];
+
+    String? combinedCookie;
+    for (final url in urls) {
+      final cookie = await _getNativeCookie(url);
+      if (cookie != null && cookie.contains('SUB=')) {
+        combinedCookie = cookie;
+        break;
+      }
+    }
+
+    if (combinedCookie != null && mounted) {
+      setState(() {
+        _isProcessingLogin = true;
+        _webViewMode = _WebViewMode.none;
+      });
+      if (mounted) {
+        context.read<AuthBloc>().add(
+          AuthCookieLoginRequested(cookie: combinedCookie),
+        );
+      }
+    } else if (mounted) {
+      // 如果原生也读不到，fallback 尝试 JS 方式（非 HttpOnly cookie）
       try {
-        final cookie = await _cookieController.runJavaScriptReturningResult(
+        final jsCookie = await _cookieController.runJavaScriptReturningResult(
           'document.cookie',
         );
-        final cookieStr = cookie.toString().replaceAll('"', '');
-        if (cookieStr.contains('SUB=') && mounted) {
-          context.read<AuthBloc>().add(
-            AuthCookieLoginRequested(cookie: cookieStr),
-          );
-          setState(() => _webViewMode = _WebViewMode.none);
+        final jsStr = jsCookie.toString().replaceAll('"', '');
+        if (jsStr.contains('SUB=') && mounted) {
+          setState(() {
+            _isProcessingLogin = true;
+            _webViewMode = _WebViewMode.none;
+          });
+          if (mounted) {
+            context.read<AuthBloc>().add(
+              AuthCookieLoginRequested(cookie: jsStr),
+            );
+          }
+          return;
         }
       } catch (_) {}
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('未检测到登录状态，请先完成登录')));
+      }
     }
   }
 
@@ -102,13 +153,27 @@ class _LoginPageState extends State<LoginPage> {
         if (state is AuthAuthenticated || state is AuthGuest) {
           context.go('/home');
         } else if (state is AuthError) {
+          if (mounted) {
+            setState(() => _isProcessingLogin = false);
+          }
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text(state.message)));
         }
       },
       child: Scaffold(
-        body: _webViewMode != _WebViewMode.none
+        body: _isProcessingLogin
+            ? const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('正在登录...'),
+                  ],
+                ),
+              )
+            : _webViewMode != _WebViewMode.none
             ? _buildWebView(context)
             : _buildLoginMenu(context, colorScheme),
       ),
@@ -119,6 +184,7 @@ class _LoginPageState extends State<LoginPage> {
     final isOAuth = _webViewMode == _WebViewMode.oauth;
     final controller = isOAuth ? _oauthController : _cookieController;
     final title = isOAuth ? '微博 OAuth 登录' : '微博账号登录';
+    final colorScheme = Theme.of(context).colorScheme;
 
     return SafeArea(
       child: Column(
@@ -129,6 +195,23 @@ class _LoginPageState extends State<LoginPage> {
               icon: const Icon(Icons.close),
               onPressed: () => setState(() => _webViewMode = _WebViewMode.none),
             ),
+            actions: [
+              if (!isOAuth)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilledButton.icon(
+                    onPressed: _manualCheckCookie,
+                    icon: const Icon(Icons.check, size: 18),
+                    label: const Text('登录完成'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ),
+            ],
           ),
           Expanded(child: WebViewWidget(controller: controller)),
         ],

@@ -25,26 +25,32 @@ class WeiboCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
+    void navigateToDetail() {
+      if (!showFullContent) {
+        context.push('/post/${post.id}');
+      }
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: InkWell(
-        onTap: showFullContent ? null : () => context.push('/post/${post.id}'),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 用户信息行
-              Row(
-                children: [
-                  UserAvatar(
-                    imageUrl: post.user.profileImageUrl,
-                    size: 40,
-                    onTap: () => context.push('/profile/${post.user.id}'),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 用户信息行 — 头像和更多按钮有自己的点击事件
+            Row(
+              children: [
+                UserAvatar(
+                  imageUrl: post.user.profileImageUrl,
+                  size: 40,
+                  onTap: () => context.push('/profile/${post.user.id}'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: navigateToDetail,
+                    behavior: HitTestBehavior.opaque,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -80,97 +86,107 @@ class WeiboCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.more_horiz, size: 20),
-                    onPressed: () {},
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // 微博正文
-              Text(
-                _stripHtmlTags(post.text),
-                style: textTheme.bodyMedium,
-                maxLines: showFullContent ? null : 6,
-                overflow: showFullContent ? null : TextOverflow.ellipsis,
-              ),
-
-              // 图片
-              if (post.imageUrls.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                ImageGrid(imageUrls: post.imageUrls),
-              ],
-
-              // 转发内容
-              if (post.retweetedStatus != null) ...[
-                const SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest.withValues(
-                      alpha: 0.3,
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '@${post.retweetedStatus!.user.screenName}',
-                        style: textTheme.labelMedium?.copyWith(
-                          color: colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _stripHtmlTags(post.retweetedStatus!.text),
-                        style: textTheme.bodySmall,
-                        maxLines: showFullContent ? null : 3,
-                        overflow: showFullContent
-                            ? null
-                            : TextOverflow.ellipsis,
-                      ),
-                      if (post.retweetedStatus!.imageUrls.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        ImageGrid(
-                          imageUrls: post.retweetedStatus!.imageUrls,
-                          maxCount: 3,
-                        ),
-                      ],
-                    ],
-                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.more_horiz, size: 20),
+                  onPressed: () {},
+                  visualDensity: VisualDensity.compact,
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
 
-              // 操作栏
-              const SizedBox(height: 8),
-              ActionBar(
-                repostCount: post.repostsCount,
-                commentCount: post.commentsCount,
-                likeCount: post.attitudesCount,
-                isFavorited: post.favorited ?? false,
-                postId: post.id,
-                onRepost: () {
-                  final url = 'https://m.weibo.cn/detail/${post.id}';
-                  Share.share(
-                    '${post.user.screenName}: ${_stripHtmlTags(post.text)}\n$url',
-                  );
-                },
-                onComment: showFullContent
-                    ? null // 已经在详情页，不需要再跳转
-                    : () => context.push('/post/${post.id}'),
-                onLike: () {
-                  context.read<FavoriteCubit>().toggleFavorite(
-                    post.id,
-                    post.favorited ?? false,
-                  );
-                },
+            // 可点击的内容区域（正文 + 图片 + 转发）
+            InkWell(
+              onTap: showFullContent ? null : navigateToDetail,
+              borderRadius: BorderRadius.circular(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 微博正文
+                  Text(
+                    _stripHtmlTags(post.text),
+                    style: textTheme.bodyMedium,
+                    maxLines: showFullContent ? null : 6,
+                    overflow: showFullContent ? null : TextOverflow.ellipsis,
+                  ),
+
+                  // 图片
+                  if (post.imageUrls.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ImageGrid(imageUrls: post.imageUrls),
+                  ],
+
+                  // 转发内容
+                  if (post.retweetedStatus != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.3,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '@${post.retweetedStatus!.user.screenName}',
+                            style: textTheme.labelMedium?.copyWith(
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _stripHtmlTags(post.retweetedStatus!.text),
+                            style: textTheme.bodySmall,
+                            maxLines: showFullContent ? null : 3,
+                            overflow: showFullContent
+                                ? null
+                                : TextOverflow.ellipsis,
+                          ),
+                          if (post.retweetedStatus!.imageUrls.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            ImageGrid(
+                              imageUrls: post.retweetedStatus!.imageUrls,
+                              maxCount: 3,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ),
+            ),
+
+            // 操作栏 — 有自己的点击事件，独立于内容区域
+            const SizedBox(height: 8),
+            ActionBar(
+              repostCount: post.repostsCount,
+              commentCount: post.commentsCount,
+              likeCount: post.attitudesCount,
+              isFavorited: post.favorited ?? false,
+              postId: post.id,
+              onRepost: () {
+                final url = 'https://m.weibo.cn/detail/${post.id}';
+                Share.share(
+                  '${post.user.screenName}: ${_stripHtmlTags(post.text)}\n$url',
+                );
+              },
+              onComment: showFullContent
+                  ? null // 已经在详情页，不需要再跳转
+                  : () => context.push('/post/${post.id}'),
+              onLike: () {
+                context.read<FavoriteCubit>().toggleFavorite(
+                  post.id,
+                  post.favorited ?? false,
+                );
+              },
+            ),
+          ],
         ),
       ),
     );

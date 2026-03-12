@@ -9,8 +9,11 @@ class ApiConstants {
   static const String oauthAccessTokenUrl =
       'https://api.weibo.com/oauth2/access_token';
 
-  // 网页端 API
+  // 网页端 API (m.weibo.cn)
   static const String webBaseUrl = 'https://m.weibo.cn/api';
+
+  // PC 网页端 API (weibo.com) — 推荐流、热搜等
+  static const String pcWebBaseUrl = 'https://weibo.com';
 
   // OAuth 配置 —— 替换为你自己的 AppKey
   static const String appKey = 'YOUR_APP_KEY';
@@ -25,9 +28,23 @@ class ApiConstants {
   static const String favoritesDestroy = '/favorites/destroy.json';
   static const String favoritesList = '/favorites.json';
 
-  // 网页端 API 路径
+  // 网页端 API 路径 (m.weibo.cn)
   static const String webHotSearch = '/container/getIndex';
   static const String webDetail = '/detail';
   static const String webComments = '/comments/hotflow';
   static const String webUserTimeline = '/container/getIndex';
+
+  // PC 网页端 API 路径 (weibo.com/ajax)
+  static const String pcHotTimeline = '/ajax/feed/hottimeline';
+  static const String pcHotBand = '/ajax/statuses/hot_band';
+  static const String pcSearch = '/ajax/side/search';
+  static const String pcSearchList = '/ajax/statuses/searchList';
+  static const String pcPostDetail = '/ajax/statuses/show'; // ?id=xxx
+  static const String pcComments = '/ajax/statuses/buildComments'; // ?id=xxx
+
+  // Visitor cookie 端点
+  static const String visitorGenUrl =
+      'https://passport.weibo.com/visitor/genvisitor';
+  static const String visitorIncarnateUrl =
+      'https://passport.weibo.com/visitor/visitor';
 }

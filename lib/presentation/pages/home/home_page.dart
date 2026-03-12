@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_weibo/domain/entities/user.dart';
@@ -17,54 +18,88 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
+  DateTime? _lastBackPress;
+
+  /// 处理 Android 返回手势：
+  /// - 如果不在首页 tab → 切回首页 tab
+  /// - 如果在首页 tab → 双击退出（2秒内再按一次退出应用）
+  Future<bool> _onWillPop() async {
+    if (_currentIndex != 0) {
+      setState(() => _currentIndex = 0);
+      return false;
+    }
+    final now = DateTime.now();
+    if (_lastBackPress != null &&
+        now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+      // 双击退出
+      SystemNavigator.pop();
+      return true;
+    }
+    _lastBackPress = now;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('再按一次退出应用'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AuthBloc, AuthState>(
-      builder: (context, authState) {
-        final isLoggedIn = authState.isLoggedIn;
-
-        final pages = <Widget>[
-          const TimelinePage(),
-          const SearchPage(),
-          isLoggedIn
-              ? const FavoritesPage()
-              : const _LoginRequiredPage(feature: '收藏'),
-          const _MePage(),
-        ];
-
-        return Scaffold(
-          body: IndexedStack(index: _currentIndex, children: pages),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _currentIndex,
-            onDestinationSelected: (index) {
-              setState(() => _currentIndex = index);
-            },
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: '首页',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.search),
-                selectedIcon: Icon(Icons.search),
-                label: '发现',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.star_outline),
-                selectedIcon: Icon(Icons.star),
-                label: '收藏',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: '我的',
-              ),
-            ],
-          ),
-        );
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onWillPop();
       },
+      child: BlocBuilder<AuthBloc, AuthState>(
+        builder: (context, authState) {
+          final isLoggedIn = authState.isLoggedIn;
+
+          final pages = <Widget>[
+            const TimelinePage(),
+            const SearchPage(),
+            isLoggedIn
+                ? const FavoritesPage()
+                : const _LoginRequiredPage(feature: '收藏'),
+            const _MePage(),
+          ];
+
+          return Scaffold(
+            body: IndexedStack(index: _currentIndex, children: pages),
+            bottomNavigationBar: NavigationBar(
+              selectedIndex: _currentIndex,
+              onDestinationSelected: (index) {
+                setState(() => _currentIndex = index);
+              },
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home),
+                  label: '首页',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.search),
+                  selectedIcon: Icon(Icons.search),
+                  label: '发现',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.star_outline),
+                  selectedIcon: Icon(Icons.star),
+                  label: '收藏',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person),
+                  label: '我的',
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
