@@ -37,7 +37,17 @@ class _PostDetailPageState extends State<PostDetailPage> {
     try {
       final webApi = sl<WeiboWebApi>();
       final data = await webApi.getPostDetail(widget.postId);
-      final postJson = data['data'] as Map<String, dynamic>?;
+
+      // PC web /ajax/statuses/show 直接返回帖子对象
+      // 但也可能包在 data 字段里，兼容两种格式
+      Map<String, dynamic>? postJson;
+      if (data.containsKey('text') && data.containsKey('user')) {
+        // 直接是帖子对象
+        postJson = data;
+      } else if (data['data'] is Map<String, dynamic>) {
+        postJson = data['data'] as Map<String, dynamic>;
+      }
+
       if (postJson != null) {
         _post = WeiboPostModel.fromJson(postJson);
         // 记录浏览历史
@@ -45,13 +55,28 @@ class _PostDetailPageState extends State<PostDetailPage> {
           context.read<HistoryCubit>().addToHistory(_post!);
         }
       }
+
       // 加载评论
       try {
         final commentData = await webApi.getHotComments(widget.postId);
-        final commentList = (commentData['data']?['data'] as List?) ?? [];
-        _comments = commentList
-            .map((json) => CommentModel.fromJson(json as Map<String, dynamic>))
-            .toList();
+        // PC web buildComments 返回 {"data": [...], "max_id": ...}
+        // 或 {"data": {"data": [...], ...}}
+        List? commentList;
+        final innerData = commentData['data'];
+        if (innerData is List) {
+          commentList = innerData;
+        } else if (innerData is Map) {
+          commentList = innerData['data'] as List?;
+        }
+        commentList ??= [];
+        _comments = [];
+        for (final json in commentList) {
+          if (json is Map<String, dynamic>) {
+            try {
+              _comments.add(CommentModel.fromJson(json));
+            } catch (_) {}
+          }
+        }
       } catch (_) {}
 
       setState(() => _isLoading = false);

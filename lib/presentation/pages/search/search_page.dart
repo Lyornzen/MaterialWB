@@ -32,6 +32,16 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
+  String _formatHotCount(String count) {
+    final num = int.tryParse(count) ?? 0;
+    if (num >= 100000000) {
+      return '${(num / 100000000).toStringAsFixed(1)}亿';
+    } else if (num >= 10000) {
+      return '${(num / 10000).toStringAsFixed(1)}万';
+    }
+    return count;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -70,6 +80,7 @@ class _SearchPageState extends State<SearchPage> {
                   );
                 }
                 final item = state.hotSearches[index - 1];
+                final iconDesc = item['icon_desc']?.toString() ?? '';
                 return ListTile(
                   leading: Text(
                     '$index',
@@ -82,9 +93,42 @@ class _SearchPageState extends State<SearchPage> {
                           : FontWeight.normal,
                     ),
                   ),
-                  title: Text(item['title'] ?? ''),
-                  subtitle: item['hot'] != null && item['hot'] != ''
-                      ? Text(item['hot'].toString())
+                  title: Row(
+                    children: [
+                      Flexible(child: Text(item['title'] ?? '')),
+                      if (iconDesc.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: iconDesc == '沸'
+                                ? colorScheme.error
+                                : iconDesc == '热'
+                                ? Colors.orange
+                                : colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            iconDesc,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: iconDesc == '沸' || iconDesc == '热'
+                                  ? Colors.white
+                                  : colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  subtitle:
+                      item['hot'] != null &&
+                          item['hot'] != '' &&
+                          item['hot'] != '0'
+                      ? Text('${_formatHotCount(item['hot'].toString())} 热度')
                       : null,
                   onTap: () {
                     _searchController.text = item['title'] ?? '';

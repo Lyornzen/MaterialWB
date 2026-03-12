@@ -47,38 +47,24 @@ class TimelineRepositoryImpl implements TimelineRepository {
   @override
   Future<List<WeiboPost>> getRecommendTimeline({int page = 1}) async {
     final data = await webApi.getRecommendTimeline(page: page);
-    final cards = (data['data']?['cards'] as List?) ?? [];
+
+    // PC web 端点返回 {"ok":1, "statuses":[...], "max_id":...}
+    final ok = data['ok'];
+    if (ok != 1) {
+      throw Exception('推荐流请求失败 (ok=$ok)');
+    }
+
+    final statuses = (data['statuses'] as List?) ?? [];
     final posts = <WeiboPost>[];
-    for (final card in cards) {
-      if (card is! Map<String, dynamic>) continue;
-      final cardType = card['card_type'];
-      if (cardType == 9 && card['mblog'] != null) {
-        // 单条微博卡片
-        try {
-          posts.add(
-            WeiboPostModel.fromJson(card['mblog'] as Map<String, dynamic>),
-          );
-        } catch (_) {}
-      } else if (cardType == 11) {
-        // card_group 类型（推荐流中的聚合卡片）
-        final group = card['card_group'] as List?;
-        if (group != null) {
-          for (final item in group) {
-            if (item is Map<String, dynamic> &&
-                item['card_type'] == 9 &&
-                item['mblog'] != null) {
-              try {
-                posts.add(
-                  WeiboPostModel.fromJson(
-                    item['mblog'] as Map<String, dynamic>,
-                  ),
-                );
-              } catch (_) {}
-            }
-          }
-        }
+    for (final status in statuses) {
+      if (status is! Map<String, dynamic>) continue;
+      try {
+        posts.add(WeiboPostModel.fromJson(status));
+      } catch (_) {
+        // 跳过解析失败的条目
       }
     }
+
     // 缓存第一页
     if (page == 1 && posts.isNotEmpty) {
       await cacheTimeline(posts);

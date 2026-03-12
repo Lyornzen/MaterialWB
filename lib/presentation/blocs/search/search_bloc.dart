@@ -75,21 +75,19 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     emit(const SearchLoading());
     try {
       final data = await webApi.getHotSearch();
-      final cards = (data['data']?['cards'] as List?) ?? [];
+      // PC web hot_band 返回格式:
+      // {"ok":1, "data":{"band_list":[{"word":"...", "raw_hot":123, ...}, ...]}}
+      final bandList = (data['data']?['band_list'] as List?) ?? [];
       final List<Map<String, dynamic>> hotList = [];
-      for (final card in cards) {
-        final cardGroup = card['card_group'] as List?;
-        if (cardGroup != null) {
-          for (final item in cardGroup) {
-            if (item['desc'] != null) {
-              hotList.add({
-                'title': item['desc'] ?? '',
-                'hot': item['desc_extr'] ?? '',
-                'scheme': item['scheme'] ?? '',
-              });
-            }
-          }
-        }
+      for (final item in bandList) {
+        final word = item['word'] ?? item['query'] ?? '';
+        if (word.toString().isEmpty) continue;
+        final rawHot = item['raw_hot'] ?? item['num'] ?? 0;
+        hotList.add({
+          'title': word.toString(),
+          'hot': rawHot.toString(),
+          'icon_desc': item['icon_desc'] ?? '',
+        });
       }
       emit(SearchHotResults(hotSearches: hotList));
     } catch (e) {
@@ -104,17 +102,53 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     emit(const SearchLoading());
     try {
       final data = await webApi.search(event.query);
-      final cards = (data['data']?['cards'] as List?) ?? [];
-      final posts = cards
-          .where((card) => card['card_type'] == 9)
-          .map(
-            (card) =>
-                WeiboPostModel.fromJson(card['mblog'] as Map<String, dynamic>),
-          )
-          .toList();
-      emit(
-        SearchResultLoaded(posts: posts.cast<WeiboPost>(), query: event.query),
-      );
+      final List<WeiboPost> posts = [];
+
+      // 格式1: PC web searchList — {"ok":1, "statuses":[...]} 或 {"data":{...}}
+      final statuses = data['statuses'] as List?;
+      if (statuses != null) {
+        for (final s in statuses) {
+          if (s is Map<String, dynamic>) {
+            try {
+              posts.add(WeiboPostModel.fromJson(s));
+            } catch (_) {}
+          }
+        }
+      }
+
+      // 格式2: 侧边搜索回退 — {"data":{"statuses":[...], ...}}
+      if (posts.isEmpty) {
+        final dataInner = data['data'];
+        if (dataInner is Map<String, dynamic>) {
+          final innerStatuses = dataInner['statuses'] as List?;
+          if (innerStatuses != null) {
+            for (final s in innerStatuses) {
+              if (s is Map<String, dynamic>) {
+                try {
+                  posts.add(WeiboPostModel.fromJson(s));
+                } catch (_) {}
+              }
+            }
+          }
+        }
+      }
+
+      // 格式3: m.weibo.cn cards 格式 (向后兼容)
+      if (posts.isEmpty) {
+        final cards = (data['data']?['cards'] as List?) ?? [];
+        for (final card in cards) {
+          if (card is Map<String, dynamic> && card['card_type'] == 9) {
+            final mblog = card['mblog'];
+            if (mblog is Map<String, dynamic>) {
+              try {
+                posts.add(WeiboPostModel.fromJson(mblog));
+              } catch (_) {}
+            }
+          }
+        }
+      }
+
+      emit(SearchResultLoaded(posts: posts, query: event.query));
     } catch (e) {
       emit(SearchError(message: e.toString()));
     }

@@ -7,6 +7,8 @@ import 'package:material_weibo/core/errors/exceptions.dart';
 class DioClient {
   late final Dio _officialDio;
   late final Dio _webDio;
+  late final Dio _pcWebDio;
+  late final Dio _rawDio; // 无 base URL，用于任意地址请求
   late final AuthInterceptor _authInterceptor;
 
   DioClient() {
@@ -31,6 +33,24 @@ class DioClient {
       ),
     );
     _webDio.interceptors.addAll([_authInterceptor, LoggingInterceptor()]);
+
+    _pcWebDio = Dio(
+      BaseOptions(
+        baseUrl: ApiConstants.pcWebBaseUrl,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 15),
+        responseType: ResponseType.json,
+      ),
+    );
+    _pcWebDio.interceptors.addAll([_authInterceptor, LoggingInterceptor()]);
+
+    _rawDio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 15),
+      ),
+    );
+    _rawDio.interceptors.add(LoggingInterceptor());
   }
 
   /// 更新 Token
@@ -38,6 +58,10 @@ class DioClient {
 
   /// 更新 Cookie
   void updateCookie(String? cookie) => _authInterceptor.updateCookie(cookie);
+
+  /// 更新 Visitor Cookie（游客模式）
+  void updateVisitorCookie(String? cookie) =>
+      _authInterceptor.updateVisitorCookie(cookie);
 
   /// 官方 API GET 请求
   Future<Response> officialGet(
@@ -68,13 +92,51 @@ class DioClient {
     }
   }
 
-  /// 网页端 API GET 请求
+  /// 网页端 API GET 请求 (m.weibo.cn)
   Future<Response> webGet(
     String path, {
     Map<String, dynamic>? queryParameters,
   }) async {
     try {
       return await _webDio.get(path, queryParameters: queryParameters);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  /// PC 网页端 API GET 请求 (weibo.com)
+  Future<Response> pcWebGet(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    try {
+      return await _pcWebDio.get(path, queryParameters: queryParameters);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  /// 原始 GET 请求（无 base URL，支持任意完整 URL）
+  Future<Response> rawGet(
+    String url, {
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) async {
+    try {
+      return await _rawDio.get(
+        url,
+        queryParameters: queryParameters,
+        options: options,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  /// 原始 POST 请求
+  Future<Response> rawPost(String url, {dynamic data, Options? options}) async {
+    try {
+      return await _rawDio.post(url, data: data, options: options);
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
