@@ -54,6 +54,8 @@ Future<void> initDependencies() async {
   sl.registerSingleton<AuthRepository>(
     AuthRepositoryImpl(
       officialApi: sl<WeiboOfficialApi>(),
+      webApi: sl<WeiboWebApi>(),
+      dioClient: sl<DioClient>(),
       secureStorage: sl<FlutterSecureStorage>(),
       prefsHelper: sl<PreferencesHelper>(),
     ),
@@ -91,7 +93,10 @@ Future<void> initDependencies() async {
     () => TimelineBloc(timelineRepository: sl<TimelineRepository>()),
   );
   sl.registerFactory<FavoriteCubit>(
-    () => FavoriteCubit(favoriteRepository: sl<FavoriteRepository>()),
+    () => FavoriteCubit(
+      favoriteRepository: sl<FavoriteRepository>(),
+      authRepository: sl<AuthRepository>(),
+    ),
   );
   sl.registerFactory<HistoryCubit>(
     () => HistoryCubit(historyRepository: sl<HistoryRepository>()),

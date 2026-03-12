@@ -20,8 +20,17 @@ abstract class AuthRepository {
   /// 获取网页端 Cookie
   Future<String?> getSavedCookie();
 
-  /// 获取当前登录用户信息
+  /// 获取当前登录用户信息（官方 API）
   Future<WeiboUser> getCurrentUser(String token);
+
+  /// 通过 Cookie 获取当前登录用户信息（网页端 API）
+  Future<WeiboUser> getCurrentUserByCookie();
+
+  /// 保存登录方式 ('oauth' | 'cookie')
+  Future<void> saveLoginMethod(String method);
+
+  /// 获取保存的登录方式
+  String? getLoginMethod();
 
   /// 是否已登录
   Future<bool> isLoggedIn();

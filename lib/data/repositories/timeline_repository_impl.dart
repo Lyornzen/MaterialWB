@@ -45,6 +45,34 @@ class TimelineRepositoryImpl implements TimelineRepository {
   }
 
   @override
+  Future<List<WeiboPost>> getRecommendTimeline({int page = 1}) async {
+    final data = await webApi.getRecommendTimeline(page: page);
+
+    // PC web 端点返回 {"ok":1, "statuses":[...], "max_id":...}
+    final ok = data['ok'];
+    if (ok != 1) {
+      throw Exception('推荐流请求失败 (ok=$ok)');
+    }
+
+    final statuses = (data['statuses'] as List?) ?? [];
+    final posts = <WeiboPost>[];
+    for (final status in statuses) {
+      if (status is! Map<String, dynamic>) continue;
+      try {
+        posts.add(WeiboPostModel.fromJson(status));
+      } catch (_) {
+        // 跳过解析失败的条目
+      }
+    }
+
+    // 缓存第一页
+    if (page == 1 && posts.isNotEmpty) {
+      await cacheTimeline(posts);
+    }
+    return posts;
+  }
+
+  @override
   Future<List<WeiboPost>> getUserTimeline({
     required String token,
     required String userId,

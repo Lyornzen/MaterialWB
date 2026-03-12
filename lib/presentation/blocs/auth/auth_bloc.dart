@@ -9,7 +9,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({required this.authRepository}) : super(const AuthInitial()) {
     on<AuthCheckStatus>(_onCheckStatus);
     on<AuthLoginRequested>(_onLoginRequested);
+    on<AuthCookieLoginRequested>(_onCookieLoginRequested);
     on<AuthCookieSaved>(_onCookieSaved);
+    on<AuthGuestRequested>(_onGuestRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
   }
 
@@ -21,16 +23,41 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       final isLoggedIn = await authRepository.isLoggedIn();
       if (isLoggedIn) {
-        final token = await authRepository.getSavedToken();
-        if (token != null) {
+        final method = authRepository.getLoginMethod() ?? 'oauth';
+        if (method == 'cookie') {
+          // Cookie 登录，尝试获取用户信息
           try {
-            final user = await authRepository.getCurrentUser(token);
-            emit(AuthAuthenticated(token: token, user: user));
+            final cookie = await authRepository.getSavedCookie();
+            if (cookie != null) {
+              final user = await authRepository.getCurrentUserByCookie();
+              emit(
+                AuthAuthenticated(
+                  token: cookie,
+                  user: user,
+                  loginMethod: 'cookie',
+                ),
+              );
+            } else {
+              emit(const AuthUnauthenticated());
+            }
           } catch (_) {
-            emit(AuthAuthenticated(token: token));
+            // Cookie 过期，回到未登录状态
+            await authRepository.logout();
+            emit(const AuthUnauthenticated());
           }
         } else {
-          emit(const AuthUnauthenticated());
+          // OAuth 登录
+          final token = await authRepository.getSavedToken();
+          if (token != null) {
+            try {
+              final user = await authRepository.getCurrentUser(token);
+              emit(AuthAuthenticated(token: token, user: user));
+            } catch (_) {
+              emit(AuthAuthenticated(token: token));
+            }
+          } else {
+            emit(const AuthUnauthenticated());
+          }
         }
       } else {
         emit(const AuthUnauthenticated());
@@ -58,11 +85,48 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
+  Future<void> _onCookieLoginRequested(
+    AuthCookieLoginRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(const AuthLoading());
+    try {
+      await authRepository.saveCookie(event.cookie);
+      await authRepository.saveLoginMethod('cookie');
+      try {
+        final user = await authRepository.getCurrentUserByCookie();
+        final uid = user.id;
+        // 保存 uid 供后续使用
+        if (uid.isNotEmpty) {
+          await authRepository.saveToken('cookie_$uid');
+        }
+        emit(
+          AuthAuthenticated(
+            token: event.cookie,
+            user: user,
+            loginMethod: 'cookie',
+          ),
+        );
+      } catch (_) {
+        emit(AuthAuthenticated(token: event.cookie, loginMethod: 'cookie'));
+      }
+    } catch (e) {
+      emit(AuthError(message: 'Cookie 登录失败: ${e.toString()}'));
+    }
+  }
+
   Future<void> _onCookieSaved(
     AuthCookieSaved event,
     Emitter<AuthState> emit,
   ) async {
     await authRepository.saveCookie(event.cookie);
+  }
+
+  Future<void> _onGuestRequested(
+    AuthGuestRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(const AuthGuest());
   }
 
   Future<void> _onLogoutRequested(

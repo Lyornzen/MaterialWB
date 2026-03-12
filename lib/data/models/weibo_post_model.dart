@@ -23,6 +23,7 @@ class WeiboPostModel extends WeiboPost {
     // 解析图片列表
     List<String> images = [];
     if (json['pic_urls'] != null) {
+      // m.weibo.cn 格式: [{"thumbnail_pic": "url"}]
       images = (json['pic_urls'] as List)
           .map(
             (pic) =>
@@ -34,10 +35,36 @@ class WeiboPostModel extends WeiboPost {
           )
           .where((url) => url.isNotEmpty)
           .toList();
-    } else if (json['pics'] != null) {
+    } else if (json['pic_infos'] != null && json['pic_infos'] is Map) {
+      // PC web 格式: pic_infos 是 Map<picId, {large: {url}, original: {url}, ...}>
+      // 使用 pic_ids 保持顺序，如果存在的话
+      final picInfos = json['pic_infos'] as Map<String, dynamic>;
+      final picIds = json['pic_ids'] as List?;
+      final orderedKeys =
+          picIds?.map((e) => e.toString()).toList() ?? picInfos.keys.toList();
+      for (final key in orderedKeys) {
+        final info = picInfos[key];
+        if (info == null) continue;
+        final url =
+            (info['large']?['url'] ??
+                    info['original']?['url'] ??
+                    info['mw2000']?['url'] ??
+                    '')
+                as String;
+        if (url.isNotEmpty) images.add(url);
+      }
+    } else if (json['pics'] != null && json['pics'] is List) {
+      // 旧格式: pics 数组 [{large: {url}, url: "..."}]
       images = (json['pics'] as List)
           .map((pic) => (pic['large']?['url'] ?? pic['url'] ?? '') as String)
           .where((url) => url.isNotEmpty)
+          .toList();
+    } else if (json['pic_ids'] != null &&
+        (json['pic_ids'] as List).isNotEmpty) {
+      // 仅有 pic_ids，没有 pic_infos/pics — 从 pic_id 构建 URL
+      // 格式: https://wx1.sinaimg.cn/large/{pic_id}.jpg
+      images = (json['pic_ids'] as List)
+          .map((id) => 'https://wx1.sinaimg.cn/large/$id.jpg')
           .toList();
     }
 

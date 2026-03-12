@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_weibo/presentation/blocs/auth/auth_state.dart';
+import 'package:material_weibo/presentation/blocs/auth/auth_bloc.dart';
 import 'package:material_weibo/presentation/pages/splash/splash_page.dart';
 import 'package:material_weibo/presentation/pages/login/login_page.dart';
 import 'package:material_weibo/presentation/pages/home/home_page.dart';
@@ -15,6 +18,21 @@ class AppRouter {
 
   static final GlobalKey<NavigatorState> _rootNavigatorKey =
       GlobalKey<NavigatorState>(debugLabel: 'root');
+
+  /// 不需要任何认证即可访问的路由
+  static const _publicPaths = {'/splash', '/login'};
+
+  /// 游客可以访问的路由（无需登录）
+  static const _guestAllowedPaths = {
+    '/home',
+    '/search',
+    '/settings',
+    '/post', // 前缀匹配
+    '/profile', // 前缀匹配
+  };
+
+  /// 需要已登录（OAuth / Cookie）才能访问的路由
+  static const _authRequiredPaths = {'/favorites', '/history'};
 
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -73,7 +91,56 @@ class AppRouter {
   );
 
   static String? _guard(BuildContext context, GoRouterState state) {
-    // 路由守卫将在 AuthBloc 初始化后生效
+    final path = state.matchedLocation;
+
+    // 公开路由，直接放行
+    if (_publicPaths.contains(path)) return null;
+
+    // 尝试读取 AuthBloc 状态；若 Bloc 尚未就绪（splash 阶段）则放行
+    final AuthState authState;
+    try {
+      authState = context.read<AuthBloc>().state;
+    } catch (_) {
+      // BlocProvider 尚未挂载（不应发生，但做防御处理）
+      return null;
+    }
+
+    // 仍在初始化中，让 splash 处理导航
+    if (authState is AuthInitial || authState is AuthLoading) return null;
+
+    final isLoggedIn = authState.isLoggedIn;
+    final isGuest = authState.isGuest;
+    final isUnauthenticated =
+        authState is AuthUnauthenticated || authState is AuthError;
+
+    // 完全未认证（既非游客也非已登录）→ 只能去登录页
+    if (isUnauthenticated) {
+      return '/login';
+    }
+
+    // 游客模式访问需要登录的页面 → 重定向到登录页
+    if (isGuest && _isAuthRequired(path)) {
+      return '/login';
+    }
+
+    // 已登录用户尝试访问登录页 → 重定向到首页
+    if (isLoggedIn && path == '/login') {
+      return '/home';
+    }
+
     return null;
+  }
+
+  /// 检查路径是否需要已登录用户权限
+  static bool _isAuthRequired(String path) {
+    // 精确匹配
+    if (_authRequiredPaths.contains(path)) return true;
+    // 不在游客可访问列表中的非公开路由也需要登录
+    // 对带参数的路径做前缀匹配
+    for (final allowed in _guestAllowedPaths) {
+      if (path == allowed || path.startsWith('$allowed/')) return false;
+    }
+    // 既不公开也不在游客白名单 → 需要登录
+    return true;
   }
 }

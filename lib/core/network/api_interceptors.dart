@@ -5,9 +5,11 @@ import 'package:flutter/foundation.dart';
 class AuthInterceptor extends Interceptor {
   String? _accessToken;
   String? _cookie;
+  String? _visitorCookie;
 
   void updateToken(String? token) => _accessToken = token;
   void updateCookie(String? cookie) => _cookie = cookie;
+  void updateVisitorCookie(String? cookie) => _visitorCookie = cookie;
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -15,13 +17,29 @@ class AuthInterceptor extends Interceptor {
     if (options.baseUrl.contains('api.weibo.com') && _accessToken != null) {
       options.queryParameters['access_token'] = _accessToken;
     }
-    // 网页端 API 使用 Cookie
+    // 网页端 API 使用 Cookie (m.weibo.cn 和 weibo.com)
     if (options.baseUrl.contains('m.weibo.cn') && _cookie != null) {
       options.headers['Cookie'] = _cookie;
+    } else if (options.baseUrl.contains('weibo.com') &&
+        !options.baseUrl.contains('m.weibo.cn')) {
+      // PC weibo.com 优先使用用户 cookie，其次使用 visitor cookie
+      final effectiveCookie = _cookie ?? _visitorCookie;
+      if (effectiveCookie != null) {
+        options.headers['Cookie'] = effectiveCookie;
+      }
     }
-    options.headers['User-Agent'] =
-        'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 '
-        '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
+    // PC 端使用桌面 UA，移动端使用移动 UA
+    if (options.baseUrl.contains('weibo.com') &&
+        !options.baseUrl.contains('m.weibo.cn')) {
+      options.headers['User-Agent'] =
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      options.headers['Referer'] = 'https://weibo.com/';
+    } else {
+      options.headers['User-Agent'] =
+          'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
+    }
     handler.next(options);
   }
 
