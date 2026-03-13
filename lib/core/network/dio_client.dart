@@ -104,6 +104,23 @@ class DioClient {
     }
   }
 
+  /// 网页端 API POST 请求 (m.weibo.cn)
+  Future<Response> webPost(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    try {
+      return await _webDio.post(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
   /// PC 网页端 API GET 请求 (weibo.com)
   Future<Response> pcWebGet(
     String path, {

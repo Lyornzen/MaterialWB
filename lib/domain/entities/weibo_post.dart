@@ -13,6 +13,7 @@ class WeiboPost extends Equatable {
   final int attitudesCount;
   final List<String> imageUrls;
   final String? videoUrl;
+  final String? videoThumbnailUrl;
   final WeiboPost? retweetedStatus;
   final String? source;
   final bool? favorited;
@@ -28,6 +29,7 @@ class WeiboPost extends Equatable {
     this.attitudesCount = 0,
     this.imageUrls = const [],
     this.videoUrl,
+    this.videoThumbnailUrl,
     this.retweetedStatus,
     this.source,
     this.favorited,

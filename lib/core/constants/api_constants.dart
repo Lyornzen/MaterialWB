@@ -33,6 +33,8 @@ class ApiConstants {
   static const String webDetail = '/detail';
   static const String webComments = '/comments/hotflow';
   static const String webUserTimeline = '/container/getIndex';
+  static const String webAttitudeCreate = '/attitudes/create';
+  static const String webAttitudeDestroy = '/attitudes/destroy';
 
   // PC 网页端 API 路径 (weibo.com/ajax)
   static const String pcHotTimeline = '/ajax/feed/hottimeline';

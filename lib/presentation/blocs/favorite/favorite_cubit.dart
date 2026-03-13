@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:material_weibo/core/di/injection.dart';
+import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
 import 'package:material_weibo/domain/entities/favorite.dart';
 import 'package:material_weibo/domain/repositories/auth_repository.dart';
 import 'package:material_weibo/domain/repositories/favorite_repository.dart';
@@ -21,9 +24,31 @@ class FavoriteLoading extends FavoriteState {
 
 class FavoriteLoaded extends FavoriteState {
   final List<Favorite> favorites;
-  const FavoriteLoaded({required this.favorites});
+
+  /// 记录被点赞的帖子 ID 集合（用于 UI 乐观更新）
+  final Set<String> likedPostIds;
+
+  /// 记录被取消点赞的帖子 ID 集合
+  final Set<String> unlikedPostIds;
+  const FavoriteLoaded({
+    required this.favorites,
+    this.likedPostIds = const {},
+    this.unlikedPostIds = const {},
+  });
   @override
-  List<Object?> get props => [favorites];
+  List<Object?> get props => [favorites, likedPostIds, unlikedPostIds];
+
+  FavoriteLoaded copyWith({
+    List<Favorite>? favorites,
+    Set<String>? likedPostIds,
+    Set<String>? unlikedPostIds,
+  }) {
+    return FavoriteLoaded(
+      favorites: favorites ?? this.favorites,
+      likedPostIds: likedPostIds ?? this.likedPostIds,
+      unlikedPostIds: unlikedPostIds ?? this.unlikedPostIds,
+    );
+  }
 }
 
 class FavoriteError extends FavoriteState {
@@ -82,6 +107,7 @@ class FavoriteCubit extends Cubit<FavoriteState> {
     }
   }
 
+  /// 切换收藏状态（官方 API）
   Future<void> toggleFavorite(String postId, bool currentlyFavorited) async {
     final method = authRepository.getLoginMethod();
     if (method != 'oauth') {
@@ -101,5 +127,71 @@ class FavoriteCubit extends Cubit<FavoriteState> {
     } catch (e) {
       emit(FavoriteError(message: e.toString()));
     }
+  }
+
+  /// 切换点赞状态（网页 API attitude）
+  Future<void> toggleLike(String postId, bool currentlyLiked) async {
+    // 乐观更新 UI
+    final currentState = state;
+    Set<String> liked = {};
+    Set<String> unliked = {};
+    List<Favorite> favorites = [];
+    if (currentState is FavoriteLoaded) {
+      liked = Set.from(currentState.likedPostIds);
+      unliked = Set.from(currentState.unlikedPostIds);
+      favorites = currentState.favorites;
+    }
+
+    if (currentlyLiked) {
+      liked.remove(postId);
+      unliked.add(postId);
+    } else {
+      unliked.remove(postId);
+      liked.add(postId);
+    }
+    emit(
+      FavoriteLoaded(
+        favorites: favorites,
+        likedPostIds: liked,
+        unlikedPostIds: unliked,
+      ),
+    );
+
+    // 发送 API 请求
+    try {
+      final webApi = sl<WeiboWebApi>();
+      if (currentlyLiked) {
+        await webApi.destroyAttitude(postId);
+      } else {
+        await webApi.createAttitude(postId);
+      }
+    } catch (e) {
+      // 回滚乐观更新
+      if (currentlyLiked) {
+        unliked.remove(postId);
+        liked.add(postId);
+      } else {
+        liked.remove(postId);
+        unliked.add(postId);
+      }
+      emit(
+        FavoriteLoaded(
+          favorites: favorites,
+          likedPostIds: liked,
+          unlikedPostIds: unliked,
+        ),
+      );
+      debugPrint('Like toggle failed: $e');
+    }
+  }
+
+  /// 检查帖子是否被点赞（考虑乐观更新）
+  bool isLiked(String postId, bool originalFavorited) {
+    final currentState = state;
+    if (currentState is FavoriteLoaded) {
+      if (currentState.likedPostIds.contains(postId)) return true;
+      if (currentState.unlikedPostIds.contains(postId)) return false;
+    }
+    return originalFavorited;
   }
 }

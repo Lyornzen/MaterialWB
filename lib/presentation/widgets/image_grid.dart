@@ -8,7 +8,15 @@ class ImageGrid extends StatelessWidget {
   final List<String> imageUrls;
   final int maxCount;
 
-  const ImageGrid({super.key, required this.imageUrls, this.maxCount = 9});
+  /// 当图片被查看时的回调（用于记录浏览历史）
+  final VoidCallback? onImageViewed;
+
+  const ImageGrid({
+    super.key,
+    required this.imageUrls,
+    this.maxCount = 9,
+    this.onImageViewed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +93,7 @@ class ImageGrid extends StatelessWidget {
   }
 
   void _openGallery(BuildContext context, int initialIndex) {
+    onImageViewed?.call();
     Navigator.push(
       context,
       MaterialPageRoute(

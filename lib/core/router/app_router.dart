@@ -80,7 +80,10 @@ class AppRouter {
       GoRoute(
         path: '/search',
         name: 'search',
-        builder: (context, state) => const SearchPage(),
+        builder: (context, state) {
+          final query = state.uri.queryParameters['q'];
+          return SearchPage(initialQuery: query);
+        },
       ),
       GoRoute(
         path: '/settings',

@@ -14,6 +14,7 @@ class WeiboUser extends Equatable {
   final String? coverImageUrl;
   final String? gender;
   final String? location;
+  final bool? following;
 
   const WeiboUser({
     required this.id,
@@ -28,6 +29,7 @@ class WeiboUser extends Equatable {
     this.coverImageUrl,
     this.gender,
     this.location,
+    this.following,
   });
 
   @override

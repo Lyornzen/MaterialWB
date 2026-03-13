@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:material_weibo/domain/entities/weibo_post.dart';
 import 'package:material_weibo/presentation/blocs/favorite/favorite_cubit.dart';
+import 'package:material_weibo/presentation/blocs/history/history_cubit.dart';
 import 'package:material_weibo/presentation/widgets/image_grid.dart';
 import 'package:material_weibo/presentation/widgets/action_bar.dart';
 import 'package:material_weibo/presentation/widgets/user_avatar.dart';
+import 'package:material_weibo/presentation/widgets/rich_content_text.dart';
+import 'package:material_weibo/presentation/widgets/video_player_widget.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 /// 微博卡片组件
@@ -75,6 +80,27 @@ class WeiboCard extends StatelessWidget {
                                   color: colorScheme.primary,
                                 ),
                               ),
+                            if (post.user.following == true)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '已关注',
+                                    style: textTheme.labelSmall?.copyWith(
+                                      color: colorScheme.onPrimaryContainer,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                         Text(
@@ -89,23 +115,23 @@ class WeiboCard extends StatelessWidget {
                 ),
                 IconButton(
                   icon: const Icon(Icons.more_horiz, size: 20),
-                  onPressed: () {},
+                  onPressed: () => _showMoreMenu(context),
                   visualDensity: VisualDensity.compact,
                 ),
               ],
             ),
             const SizedBox(height: 12),
 
-            // 可点击的内容区域（正文 + 图片 + 转发）
-            InkWell(
+            // 可点击的内容区域（正文 + 图片 + 视频 + 转发）
+            GestureDetector(
               onTap: showFullContent ? null : navigateToDetail,
-              borderRadius: BorderRadius.circular(8),
+              behavior: HitTestBehavior.opaque,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // 微博正文
-                  Text(
-                    _stripHtmlTags(post.text),
+                  RichContentText(
+                    htmlText: post.text,
                     style: textTheme.bodyMedium,
                     maxLines: showFullContent ? null : 6,
                     overflow: showFullContent ? null : TextOverflow.ellipsis,
@@ -114,7 +140,22 @@ class WeiboCard extends StatelessWidget {
                   // 图片
                   if (post.imageUrls.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    ImageGrid(imageUrls: post.imageUrls),
+                    ImageGrid(
+                      imageUrls: post.imageUrls,
+                      onImageViewed: showFullContent
+                          ? null // 详情页已经记录了
+                          : () =>
+                                context.read<HistoryCubit>().addToHistory(post),
+                    ),
+                  ],
+
+                  // 视频
+                  if (post.videoUrl != null && post.videoUrl!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    VideoPlayerWidget(
+                      videoUrl: post.videoUrl!,
+                      thumbnailUrl: post.videoThumbnailUrl,
+                    ),
                   ],
 
                   // 转发内容
@@ -139,8 +180,8 @@ class WeiboCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            _stripHtmlTags(post.retweetedStatus!.text),
+                          RichContentText(
+                            htmlText: post.retweetedStatus!.text,
                             style: textTheme.bodySmall,
                             maxLines: showFullContent ? null : 3,
                             overflow: showFullContent
@@ -152,6 +193,20 @@ class WeiboCard extends StatelessWidget {
                             ImageGrid(
                               imageUrls: post.retweetedStatus!.imageUrls,
                               maxCount: 3,
+                              onImageViewed: showFullContent
+                                  ? null
+                                  : () => context
+                                        .read<HistoryCubit>()
+                                        .addToHistory(post),
+                            ),
+                          ],
+                          if (post.retweetedStatus!.videoUrl != null &&
+                              post.retweetedStatus!.videoUrl!.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            VideoPlayerWidget(
+                              videoUrl: post.retweetedStatus!.videoUrl!,
+                              thumbnailUrl:
+                                  post.retweetedStatus!.videoThumbnailUrl,
                             ),
                           ],
                         ],
@@ -162,24 +217,84 @@ class WeiboCard extends StatelessWidget {
               ),
             ),
 
-            // 操作栏 — 有自己的点击事件，独立于内容区域
+            // 操作栏 — BlocBuilder 实时反映点赞状态
             const SizedBox(height: 8),
-            ActionBar(
-              repostCount: post.repostsCount,
-              commentCount: post.commentsCount,
-              likeCount: post.attitudesCount,
-              isFavorited: post.favorited ?? false,
-              postId: post.id,
-              onRepost: () {
-                final url = 'https://m.weibo.cn/detail/${post.id}';
+            BlocBuilder<FavoriteCubit, FavoriteState>(
+              builder: (context, favoriteState) {
+                final favoriteCubit = context.read<FavoriteCubit>();
+                final isLiked = favoriteCubit.isLiked(
+                  post.id,
+                  post.favorited ?? false,
+                );
+                return ActionBar(
+                  repostCount: post.repostsCount,
+                  commentCount: post.commentsCount,
+                  likeCount: post.attitudesCount,
+                  isFavorited: isLiked,
+                  postId: post.id,
+                  onRepost: () {
+                    final url = 'https://m.weibo.cn/detail/${post.id}';
+                    Share.share(
+                      '${post.user.screenName}: ${_stripHtmlTags(post.text)}\n$url',
+                    );
+                  },
+                  onComment: showFullContent
+                      ? null // 已经在详情页，不需要再跳转
+                      : () => context.push('/post/${post.id}'),
+                  onLike: () {
+                    context.read<FavoriteCubit>().toggleLike(post.id, isLiked);
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMoreMenu(BuildContext context) {
+    final url = 'https://m.weibo.cn/detail/${post.id}';
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.link),
+              title: const Text('复制链接'),
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: url));
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('链接已复制')));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.open_in_browser),
+              title: const Text('在浏览器中打开'),
+              onTap: () {
+                Navigator.pop(ctx);
+                launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.share),
+              title: const Text('分享'),
+              onTap: () {
+                Navigator.pop(ctx);
                 Share.share(
                   '${post.user.screenName}: ${_stripHtmlTags(post.text)}\n$url',
                 );
               },
-              onComment: showFullContent
-                  ? null // 已经在详情页，不需要再跳转
-                  : () => context.push('/post/${post.id}'),
-              onLike: () {
+            ),
+            ListTile(
+              leading: const Icon(Icons.bookmark_outline),
+              title: const Text('收藏'),
+              onTap: () {
+                Navigator.pop(ctx);
                 context.read<FavoriteCubit>().toggleFavorite(
                   post.id,
                   post.favorited ?? false,

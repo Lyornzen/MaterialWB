@@ -177,10 +177,10 @@ class WeiboWebApi {
     return data as Map<String, dynamic>;
   }
 
-  /// 搜索微博（PC web 端点，返回微博帖子列表）
+  /// 搜索微博（PC web 端点优先，m.weibo.cn 回退）
   Future<Map<String, dynamic>> search(String keyword, {int page = 1}) async {
     await getVisitorCookie();
-    // 尝试使用完整搜索端点
+    // 尝试使用 PC web 完整搜索端点
     try {
       final response = await dioClient.pcWebGet(
         ApiConstants.pcSearchList,
@@ -189,16 +189,29 @@ class WeiboWebApi {
       final data = response.data;
       if (data is String) return jsonDecode(data) as Map<String, dynamic>;
       return data as Map<String, dynamic>;
-    } catch (_) {
-      // 回退到侧边搜索（返回建议性结果）
-      final response = await dioClient.pcWebGet(
-        ApiConstants.pcSearch,
-        queryParameters: {'q': keyword},
+    } catch (_) {}
+
+    // 回退到 m.weibo.cn 搜索（含 &t=0 修正）
+    try {
+      final response = await dioClient.webGet(
+        ApiConstants.webHotSearch,
+        queryParameters: {
+          'containerid': '100103type=1&q=$keyword&t=0',
+          'page_type': 'searchall',
+          'page': page,
+        },
       );
-      final data = response.data;
-      if (data is String) return jsonDecode(data) as Map<String, dynamic>;
-      return data as Map<String, dynamic>;
-    }
+      return response.data as Map<String, dynamic>;
+    } catch (_) {}
+
+    // 最终回退到侧边搜索
+    final response = await dioClient.pcWebGet(
+      ApiConstants.pcSearch,
+      queryParameters: {'q': keyword},
+    );
+    final data = response.data;
+    if (data is String) return jsonDecode(data) as Map<String, dynamic>;
+    return data as Map<String, dynamic>;
   }
 
   /// 获取用户时间线（网页版）
@@ -232,5 +245,23 @@ class WeiboWebApi {
         : null;
     if (userInfo == null) throw Exception('未获取到用户信息，Cookie 可能已过期');
     return userInfo;
+  }
+
+  /// 点赞微博
+  Future<Map<String, dynamic>> createAttitude(String postId) async {
+    final response = await dioClient.webPost(
+      ApiConstants.webAttitudeCreate,
+      data: {'id': postId, 'attitude': 'heart', 'st': '0'},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// 取消点赞
+  Future<Map<String, dynamic>> destroyAttitude(String postId) async {
+    final response = await dioClient.webPost(
+      ApiConstants.webAttitudeDestroy,
+      data: {'id': postId, 'attitude': 'heart', 'st': '0'},
+    );
+    return response.data as Map<String, dynamic>;
   }
 }

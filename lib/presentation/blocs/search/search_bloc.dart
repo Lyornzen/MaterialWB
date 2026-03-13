@@ -104,13 +104,15 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       final data = await webApi.search(event.query);
       final List<WeiboPost> posts = [];
 
-      // 格式1: PC web searchList — {"ok":1, "statuses":[...]} 或 {"data":{...}}
+      // 格式1: PC web searchList — {"ok":1, "statuses":[...]}
       final statuses = data['statuses'] as List?;
       if (statuses != null) {
         for (final s in statuses) {
           if (s is Map<String, dynamic>) {
             try {
-              posts.add(WeiboPostModel.fromJson(s));
+              if (!WeiboPostModel.isAdPost(s)) {
+                posts.add(WeiboPostModel.fromJson(s));
+              }
             } catch (_) {}
           }
         }
@@ -125,7 +127,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
             for (final s in innerStatuses) {
               if (s is Map<String, dynamic>) {
                 try {
-                  posts.add(WeiboPostModel.fromJson(s));
+                  if (!WeiboPostModel.isAdPost(s)) {
+                    posts.add(WeiboPostModel.fromJson(s));
+                  }
                 } catch (_) {}
               }
             }
@@ -133,16 +137,37 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         }
       }
 
-      // 格式3: m.weibo.cn cards 格式 (向后兼容)
+      // 格式3: m.weibo.cn cards 格式 (回退)
       if (posts.isEmpty) {
         final cards = (data['data']?['cards'] as List?) ?? [];
         for (final card in cards) {
-          if (card is Map<String, dynamic> && card['card_type'] == 9) {
-            final mblog = card['mblog'];
-            if (mblog is Map<String, dynamic>) {
-              try {
+          if (card is! Map<String, dynamic>) continue;
+          final cardType = card['card_type'];
+
+          // 直接包含 mblog 的卡片
+          if (cardType == 9 && card['mblog'] != null) {
+            try {
+              final mblog = card['mblog'] as Map<String, dynamic>;
+              if (!WeiboPostModel.isAdPost(mblog)) {
                 posts.add(WeiboPostModel.fromJson(mblog));
-              } catch (_) {}
+              }
+            } catch (_) {}
+          }
+
+          // card_group 内嵌的卡片（搜索结果常用此结构）
+          final cardGroup = card['card_group'] as List?;
+          if (cardGroup != null) {
+            for (final groupItem in cardGroup) {
+              if (groupItem is Map<String, dynamic> &&
+                  groupItem['card_type'] == 9 &&
+                  groupItem['mblog'] != null) {
+                try {
+                  final mblog = groupItem['mblog'] as Map<String, dynamic>;
+                  if (!WeiboPostModel.isAdPost(mblog)) {
+                    posts.add(WeiboPostModel.fromJson(mblog));
+                  }
+                } catch (_) {}
+              }
             }
           }
         }

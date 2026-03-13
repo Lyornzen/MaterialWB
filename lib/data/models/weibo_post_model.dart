@@ -14,6 +14,7 @@ class WeiboPostModel extends WeiboPost {
     super.attitudesCount,
     super.imageUrls,
     super.videoUrl,
+    super.videoThumbnailUrl,
     super.retweetedStatus,
     super.source,
     super.favorited,
@@ -70,6 +71,7 @@ class WeiboPostModel extends WeiboPost {
 
     // 解析视频 URL
     String? videoUrl;
+    String? videoThumbnailUrl;
     final pageInfo = json['page_info'];
     if (pageInfo != null && pageInfo['type'] == 'video') {
       final mediaInfo = pageInfo['media_info'] ?? pageInfo['urls'];
@@ -80,6 +82,9 @@ class WeiboPostModel extends WeiboPost {
             mediaInfo['mp4_sd_mp4'] ??
             mediaInfo['stream_url'];
       }
+      // 视频封面图
+      videoThumbnailUrl =
+          (pageInfo['page_pic']?['url'] ?? pageInfo['page_pic']) as String?;
     }
 
     // 解析转发
@@ -110,6 +115,7 @@ class WeiboPostModel extends WeiboPost {
       attitudesCount: json['attitudes_count'] ?? 0,
       imageUrls: images,
       videoUrl: videoUrl,
+      videoThumbnailUrl: videoThumbnailUrl,
       retweetedStatus: retweet,
       source: json['source'] as String?,
       favorited: json['favorited'] as bool?,
@@ -174,5 +180,61 @@ class WeiboPostModel extends WeiboPost {
     } catch (_) {
       return DateTime.now();
     }
+  }
+
+  /// 检测一条微博 JSON 是否为广告/推广内容
+  /// 在解析前调用，以便直接跳过广告帖子
+  static bool isAdPost(Map<String, dynamic> json) {
+    // 推广标记字段
+    if (json['promotion'] != null) return true;
+    if (json['ad'] != null) return true;
+    if (json['_adInfo'] != null) return true;
+
+    // mblogtype 为广告类型（1 = 推广微博）
+    final mblogtype = json['mblogtype'];
+    if (mblogtype == 1) return true;
+
+    // 页面信息中的广告标记
+    final pageInfo = json['page_info'];
+    if (pageInfo != null) {
+      if (pageInfo['type'] == 'ad') return true;
+      final objectType = pageInfo['object_type'];
+      if (objectType != null && objectType.toString().contains('ad')) {
+        return true;
+      }
+    }
+
+    // 微博来源包含推广关键词
+    final source = (json['source'] ?? '') as String;
+    if (source.contains('广告') ||
+        source.contains('推广') ||
+        source.contains('粉丝通')) {
+      return true;
+    }
+
+    // 标题包含推广关键词
+    final title = json['title'];
+    if (title != null) {
+      final titleText =
+          (title is Map ? title['text'] : title)?.toString() ?? '';
+      if (titleText.contains('广告') ||
+          titleText.contains('推广') ||
+          titleText.contains('热推')) {
+        return true;
+      }
+    }
+
+    // 存在 admark_info 或 common_struct 中的广告标识
+    if (json['admark_info'] != null) return true;
+    if (json['common_struct'] != null) {
+      final commonStruct = json['common_struct'] as List?;
+      if (commonStruct != null) {
+        for (final item in commonStruct) {
+          if (item['name'] == 'ad' || item['name'] == 'promote') return true;
+        }
+      }
+    }
+
+    return false;
   }
 }

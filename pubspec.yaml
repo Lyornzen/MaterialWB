@@ -45,6 +45,12 @@ dependencies:
   json_annotation: ^4.9.0
   freezed_annotation: ^3.0.0
   timeago: ^3.7.0
+  video_player: ^2.9.2
+
+hooks:
+  user_defines:
+    sqlite3:
+      source: system
 
 dev_dependencies:
   flutter_test:

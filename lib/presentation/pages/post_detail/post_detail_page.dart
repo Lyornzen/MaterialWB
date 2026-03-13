@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_weibo/core/di/injection.dart';
+import 'package:material_weibo/core/utils/html_parser.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
 import 'package:material_weibo/data/models/weibo_post_model.dart';
 import 'package:material_weibo/data/models/comment_model.dart';
 import 'package:material_weibo/domain/entities/comment.dart';
 import 'package:material_weibo/presentation/blocs/history/history_cubit.dart';
 import 'package:material_weibo/presentation/widgets/weibo_card.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
 class PostDetailPage extends StatefulWidget {
   final String postId;
@@ -144,9 +146,18 @@ class _CommentItem extends StatelessWidget {
 
   const _CommentItem({required this.comment});
 
+  String _formatCount(int count) {
+    if (count <= 0) return '0';
+    if (count >= 10000) {
+      return '${(count / 10000).toStringAsFixed(1)}万';
+    }
+    return count.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    timeago.setLocaleMessages('zh', timeago.ZhMessages());
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -180,17 +191,63 @@ class _CommentItem extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  comment.text,
+                  WeiboHtmlParser.stripTags(comment.text),
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 4),
-                if (comment.likeCount > 0)
-                  Text(
-                    '${comment.likeCount} 赞',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: colorScheme.outline),
+                Row(
+                  children: [
+                    Text(
+                      timeago.format(comment.createdAt, locale: 'zh'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.outline,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(
+                      Icons.thumb_up_outlined,
+                      size: 14,
+                      color: colorScheme.outline,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatCount(comment.likeCount),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.outline,
+                      ),
+                    ),
+                  ],
+                ),
+                // 显示回复评论
+                if (comment.replyComment != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.3,
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '@${comment.replyComment!.user.screenName}: ',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: colorScheme.primary),
+                          ),
+                          TextSpan(
+                            text: WeiboHtmlParser.stripTags(
+                              comment.replyComment!.text,
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
+                ],
               ],
             ),
           ),
