@@ -77,16 +77,10 @@ class FavoriteCubit extends Cubit<FavoriteState> {
   }) : super(const FavoriteInitial());
 
   Future<void> loadFavorites({int page = 1}) async {
-    // 检查登录方式 — 收藏功能仅在 OAuth 登录下可用
+    // 检查登录方式 — 收藏功能在 OAuth 和 Cookie 登录下均可用
     final method = authRepository.getLoginMethod();
     if (method == null) {
       emit(const FavoriteUnavailable(message: '请先登录'));
-      return;
-    }
-    if (method != 'oauth') {
-      emit(
-        const FavoriteUnavailable(message: '收藏功能需要 OAuth 登录，当前为 Cookie 登录模式'),
-      );
       return;
     }
 
@@ -107,11 +101,11 @@ class FavoriteCubit extends Cubit<FavoriteState> {
     }
   }
 
-  /// 切换收藏状态（官方 API）
+  /// 切换收藏状态（根据登录方式自动选择 API）
   Future<void> toggleFavorite(String postId, bool currentlyFavorited) async {
     final method = authRepository.getLoginMethod();
-    if (method != 'oauth') {
-      emit(const FavoriteUnavailable(message: '收藏功能需要 OAuth 登录'));
+    if (method == null) {
+      emit(const FavoriteUnavailable(message: '请先登录'));
       return;
     }
 

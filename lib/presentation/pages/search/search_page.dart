@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_weibo/presentation/blocs/search/search_bloc.dart';
 import 'package:material_weibo/presentation/widgets/weibo_card.dart';
 import 'package:material_weibo/presentation/widgets/loading_indicator.dart';
@@ -13,15 +14,31 @@ class SearchPage extends StatefulWidget {
   State<SearchPage> createState() => _SearchPageState();
 }
 
-class _SearchPageState extends State<SearchPage> {
+class _SearchPageState extends State<SearchPage>
+    with SingleTickerProviderStateMixin {
   final _searchController = TextEditingController();
+  late TabController _tabController;
+
+  /// 0 = 微博, 1 = 用户
+  int _currentTab = 0;
+  String _lastQuery = '';
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) return;
+      setState(() => _currentTab = _tabController.index);
+      if (_lastQuery.isNotEmpty) {
+        _executeSearch(_lastQuery);
+      }
+    });
+
     if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
       _searchController.text = widget.initialQuery!;
-      _onSearch(widget.initialQuery!);
+      _lastQuery = widget.initialQuery!;
+      _executeSearch(widget.initialQuery!);
     } else {
       context.read<SearchBloc>().add(const SearchHotLoaded());
     }
@@ -30,12 +47,22 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
   void _onSearch(String query) {
     if (query.trim().isNotEmpty) {
-      context.read<SearchBloc>().add(SearchQuerySubmitted(query: query.trim()));
+      _lastQuery = query.trim();
+      _executeSearch(_lastQuery);
+    }
+  }
+
+  void _executeSearch(String query) {
+    if (_currentTab == 0) {
+      context.read<SearchBloc>().add(SearchQuerySubmitted(query: query));
+    } else {
+      context.read<SearchBloc>().add(SearchUserQuerySubmitted(query: query));
     }
   }
 
@@ -65,6 +92,15 @@ class _SearchPageState extends State<SearchPage> {
           ),
           onSubmitted: _onSearch,
         ),
+        bottom: _lastQuery.isNotEmpty
+            ? TabBar(
+                controller: _tabController,
+                tabs: const [
+                  Tab(text: '微博'),
+                  Tab(text: '用户'),
+                ],
+              )
+            : null,
       ),
       body: BlocBuilder<SearchBloc, SearchState>(
         builder: (context, state) {
@@ -152,13 +188,130 @@ class _SearchPageState extends State<SearchPage> {
             return ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: state.posts.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 2),
+              separatorBuilder: (_, __) => const SizedBox(height: 2),
               itemBuilder: (context, index) =>
                   WeiboCard(post: state.posts[index]),
             );
           }
+          if (state is SearchUserResultLoaded) {
+            if (state.users.isEmpty) {
+              return const Center(child: Text('未找到相关用户'));
+            }
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: state.users.length,
+              itemBuilder: (context, index) {
+                final user = state.users[index];
+                return _UserSearchCard(
+                  user: user,
+                  onTap: () => context.push('/profile/${user.id}'),
+                );
+              },
+            );
+          }
           return const Center(child: Text('搜索你感兴趣的内容'));
         },
+      ),
+    );
+  }
+}
+
+/// 用户搜索结果卡片
+class _UserSearchCard extends StatelessWidget {
+  final dynamic user; // WeiboUser
+  final VoidCallback? onTap;
+
+  const _UserSearchCard({required this.user, this.onTap});
+
+  String _formatCount(int count) {
+    if (count >= 10000) {
+      return '${(count / 10000).toStringAsFixed(1)}万';
+    }
+    return count.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: colorScheme.primaryContainer,
+                backgroundImage: user.profileImageUrl.isNotEmpty
+                    ? NetworkImage(user.profileImageUrl)
+                    : null,
+                child: user.profileImageUrl.isEmpty
+                    ? Icon(Icons.person, color: colorScheme.onPrimaryContainer)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            user.screenName,
+                            style: Theme.of(context).textTheme.titleSmall,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (user.verified == true) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.verified,
+                            size: 16,
+                            color: colorScheme.primary,
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (user.description != null &&
+                        user.description!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        user.description!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Text(
+                          '粉丝 ${_formatCount(user.followersCount)}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: colorScheme.outline),
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          '微博 ${_formatCount(user.statusesCount)}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: colorScheme.outline),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: colorScheme.outline),
+            ],
+          ),
+        ),
       ),
     );
   }

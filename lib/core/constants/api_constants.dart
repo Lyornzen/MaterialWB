@@ -43,6 +43,13 @@ class ApiConstants {
   static const String pcSearchList = '/ajax/statuses/searchList';
   static const String pcPostDetail = '/ajax/statuses/show'; // ?id=xxx
   static const String pcComments = '/ajax/statuses/buildComments'; // ?id=xxx
+  static const String pcFavorites = '/ajax/favorites/all_fav'; // 收藏列表
+  static const String pcFavoriteAdd = '/ajax/statuses/setFavorite'; // 收藏
+  static const String pcFavoriteRemove =
+      '/ajax/statuses/destoryFavorite'; // 取消收藏
+  static const String pcUserProfile = '/ajax/profile/info'; // 用户信息
+  static const String pcUserTimeline = '/ajax/statuses/mymblog'; // 用户微博列表
+  static const String pcSearchUser = '/ajax/user/searchUser'; // 搜索用户
 
   // Visitor cookie 端点
   static const String visitorGenUrl =

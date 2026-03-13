@@ -224,7 +224,7 @@ class WeiboWebApi {
       queryParameters: {
         'type': 'uid',
         'value': userId,
-        'containerid': '107603$userId',
+        'containerid': '107603${userId}',
         'page': page,
       },
     );
@@ -245,6 +245,107 @@ class WeiboWebApi {
         : null;
     if (userInfo == null) throw Exception('未获取到用户信息，Cookie 可能已过期');
     return userInfo;
+  }
+
+  // ─── 收藏 (PC web) ────────────────────────────────────
+
+  /// 获取收藏列表（PC web 端点，需要 Cookie 登录）
+  Future<Map<String, dynamic>> getFavorites({int page = 1}) async {
+    final response = await dioClient.pcWebGet(
+      ApiConstants.pcFavorites,
+      queryParameters: {'page': page, 'with_total': 'true'},
+    );
+    final data = response.data;
+    if (data is String) {
+      if (data.trimLeft().startsWith('<')) {
+        throw Exception('获取收藏列表失败：需要登录');
+      }
+      return jsonDecode(data) as Map<String, dynamic>;
+    }
+    return data as Map<String, dynamic>;
+  }
+
+  /// 收藏微博（PC web 端点）
+  Future<Map<String, dynamic>> addFavorite(String postId) async {
+    final response = await dioClient.pcWebPost(
+      ApiConstants.pcFavoriteAdd,
+      data: {'id': postId},
+    );
+    final data = response.data;
+    if (data is String) return jsonDecode(data) as Map<String, dynamic>;
+    return data as Map<String, dynamic>;
+  }
+
+  /// 取消收藏（PC web 端点）
+  Future<Map<String, dynamic>> removeFavorite(String postId) async {
+    final response = await dioClient.pcWebPost(
+      ApiConstants.pcFavoriteRemove,
+      data: {'id': postId},
+    );
+    final data = response.data;
+    if (data is String) return jsonDecode(data) as Map<String, dynamic>;
+    return data as Map<String, dynamic>;
+  }
+
+  // ─── 用户信息 (PC web) ───────────────────────────────
+
+  /// 获取用户信息（PC web 端点，需要 Cookie 登录或 visitor cookie）
+  Future<Map<String, dynamic>> getUserProfile(String uid) async {
+    await getVisitorCookie();
+    final response = await dioClient.pcWebGet(
+      ApiConstants.pcUserProfile,
+      queryParameters: {'uid': uid},
+    );
+    final data = response.data;
+    if (data is String) {
+      if (data.trimLeft().startsWith('<')) {
+        throw Exception('获取用户信息失败：需要登录');
+      }
+      return jsonDecode(data) as Map<String, dynamic>;
+    }
+    return data as Map<String, dynamic>;
+  }
+
+  /// 获取用户微博列表（PC web 端点）
+  Future<Map<String, dynamic>> getUserTimelinePcWeb(
+    String uid, {
+    int page = 1,
+  }) async {
+    await getVisitorCookie();
+    final response = await dioClient.pcWebGet(
+      ApiConstants.pcUserTimeline,
+      queryParameters: {'uid': uid, 'page': page, 'feature': '0'},
+    );
+    final data = response.data;
+    if (data is String) {
+      if (data.trimLeft().startsWith('<')) {
+        throw Exception('获取用户微博失败：需要登录');
+      }
+      return jsonDecode(data) as Map<String, dynamic>;
+    }
+    return data as Map<String, dynamic>;
+  }
+
+  // ─── 搜索用户 (PC web) ──────────────────────────────
+
+  /// 搜索用户（PC web 端点）
+  Future<Map<String, dynamic>> searchUsers(
+    String keyword, {
+    int page = 1,
+  }) async {
+    await getVisitorCookie();
+    final response = await dioClient.pcWebGet(
+      ApiConstants.pcSearchUser,
+      queryParameters: {'q': keyword, 'page': page, 'count': '20'},
+    );
+    final data = response.data;
+    if (data is String) {
+      if (data.trimLeft().startsWith('<')) {
+        throw Exception('搜索用户失败：需要登录');
+      }
+      return jsonDecode(data) as Map<String, dynamic>;
+    }
+    return data as Map<String, dynamic>;
   }
 
   /// 点赞微博
