@@ -180,6 +180,7 @@ class WeiboWebApi {
   /// 搜索微博（PC web 端点优先，m.weibo.cn 回退）
   Future<Map<String, dynamic>> search(String keyword, {int page = 1}) async {
     await getVisitorCookie();
+
     // 尝试使用 PC web 完整搜索端点
     try {
       final response = await dioClient.pcWebGet(
@@ -187,11 +188,16 @@ class WeiboWebApi {
         queryParameters: {'q': keyword, 'page': page, 'count': '20'},
       );
       final data = response.data;
-      if (data is String) return jsonDecode(data) as Map<String, dynamic>;
-      return data as Map<String, dynamic>;
+      final parsed = data is String
+          ? jsonDecode(data) as Map<String, dynamic>
+          : data as Map<String, dynamic>;
+      // 检查是否有有效数据
+      if (parsed['statuses'] != null || parsed['data'] != null) {
+        return parsed;
+      }
     } catch (_) {}
 
-    // 回退到 m.weibo.cn 搜索（含 &t=0 修正）
+    // 回退到 m.weibo.cn 搜索
     try {
       final response = await dioClient.webGet(
         ApiConstants.webHotSearch,
@@ -201,7 +207,13 @@ class WeiboWebApi {
           'page': page,
         },
       );
-      return response.data as Map<String, dynamic>;
+      final data = response.data;
+      final parsed = data is String
+          ? jsonDecode(data) as Map<String, dynamic>
+          : data as Map<String, dynamic>;
+      if (parsed['ok'] == 1 || parsed['data'] != null) {
+        return parsed;
+      }
     } catch (_) {}
 
     // 最终回退到侧边搜索
@@ -364,5 +376,29 @@ class WeiboWebApi {
       data: {'id': postId, 'attitude': 'heart', 'st': '0'},
     );
     return response.data as Map<String, dynamic>;
+  }
+
+  // ─── 关注/取消关注 (PC web) ──────────────────────────
+
+  /// 关注用户（需要 Cookie 登录）
+  Future<Map<String, dynamic>> followUser(String uid) async {
+    final response = await dioClient.pcWebPost(
+      ApiConstants.pcFriendshipCreate,
+      data: {'uid': uid, 'friend_uid': uid},
+    );
+    final data = response.data;
+    if (data is String) return jsonDecode(data) as Map<String, dynamic>;
+    return data as Map<String, dynamic>;
+  }
+
+  /// 取消关注用户（需要 Cookie 登录）
+  Future<Map<String, dynamic>> unfollowUser(String uid) async {
+    final response = await dioClient.pcWebPost(
+      ApiConstants.pcFriendshipDestroy,
+      data: {'uid': uid, 'friend_uid': uid},
+    );
+    final data = response.data;
+    if (data is String) return jsonDecode(data) as Map<String, dynamic>;
+    return data as Map<String, dynamic>;
   }
 }

@@ -97,6 +97,7 @@ class AuthRepositoryImpl implements AuthRepository {
     await secureStorage.delete(key: AppConstants.keyCookie);
     dioClient.updateToken(null);
     dioClient.updateCookie(null);
-    await prefsHelper.clearAll();
+    // 只清除认证相关的键，保留主题/字体/颜色等用户偏好
+    await prefsHelper.clearAuthData();
   }
 }

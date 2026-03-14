@@ -51,6 +51,11 @@ class ApiConstants {
   static const String pcUserTimeline = '/ajax/statuses/mymblog'; // 用户微博列表
   static const String pcSearchUser = '/ajax/user/searchUser'; // 搜索用户
 
+  // 关注/取消关注
+  static const String pcFriendshipCreate = '/ajax/friendships/create'; // 关注用户
+  static const String pcFriendshipDestroy =
+      '/ajax/friendships/destory'; // 取消关注（微博 API 拼写为 destory）
+
   // Visitor cookie 端点
   static const String visitorGenUrl =
       'https://passport.weibo.com/visitor/genvisitor';

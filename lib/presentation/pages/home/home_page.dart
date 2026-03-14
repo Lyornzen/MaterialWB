@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_weibo/core/l10n/app_localizations.dart';
 import 'package:material_weibo/domain/entities/user.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_bloc.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_state.dart';
+import 'package:material_weibo/presentation/blocs/locale/locale_cubit.dart';
 import 'package:material_weibo/presentation/pages/timeline/timeline_page.dart';
 import 'package:material_weibo/presentation/pages/search/search_page.dart';
 import 'package:material_weibo/presentation/pages/favorites/favorites_page.dart';
@@ -18,6 +20,10 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
+  final _timelineKey = GlobalKey<TimelinePageState>();
+
+  /// 上次点击首页 tab 的时间，用于检测双击
+  DateTime? _lastHomeTabTap;
 
   /// 处理 Android 返回手势：
   /// - 如果不在首页 tab → 切回首页 tab
@@ -30,16 +36,16 @@ class _HomePageState extends State<HomePage> {
     final shouldExit = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('退出应用'),
-        content: const Text('确定要退出 Material 微博吗？'),
+        title: Text(S.get('exit_app')),
+        content: Text(S.get('exit_app_confirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
+            child: Text(S.get('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('退出'),
+            child: Text(S.get('exit')),
           ),
         ],
       ),
@@ -63,44 +69,63 @@ class _HomePageState extends State<HomePage> {
           final isLoggedIn = authState.isLoggedIn;
 
           final pages = <Widget>[
-            const TimelinePage(),
+            TimelinePage(key: _timelineKey),
             const SearchPage(),
             isLoggedIn
                 ? const FavoritesPage()
-                : const _LoginRequiredPage(feature: '收藏'),
+                : _LoginRequiredPage(feature: S.get('nav_favorites')),
             const _MePage(),
           ];
 
-          return Scaffold(
-            body: IndexedStack(index: _currentIndex, children: pages),
-            bottomNavigationBar: NavigationBar(
-              selectedIndex: _currentIndex,
-              onDestinationSelected: (index) {
-                setState(() => _currentIndex = index);
-              },
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home),
-                  label: '首页',
+          return BlocBuilder<LocaleCubit, AppLocale>(
+            builder: (context, _) {
+              return Scaffold(
+                body: IndexedStack(index: _currentIndex, children: pages),
+                bottomNavigationBar: NavigationBar(
+                  selectedIndex: _currentIndex,
+                  onDestinationSelected: (index) {
+                    if (index == 0 && _currentIndex == 0) {
+                      // 已在首页 tab，检测双击
+                      final now = DateTime.now();
+                      if (_lastHomeTabTap != null &&
+                          now.difference(_lastHomeTabTap!) <
+                              const Duration(milliseconds: 500)) {
+                        // 双击：滚动到顶部并刷新
+                        _timelineKey.currentState?.scrollToTopAndRefresh();
+                        _lastHomeTabTap = null;
+                        return;
+                      }
+                      _lastHomeTabTap = now;
+                      return;
+                    }
+                    _lastHomeTabTap = null;
+                    setState(() => _currentIndex = index);
+                  },
+                  destinations: [
+                    NavigationDestination(
+                      icon: const Icon(Icons.home_outlined),
+                      selectedIcon: const Icon(Icons.home),
+                      label: S.get('nav_home'),
+                    ),
+                    NavigationDestination(
+                      icon: const Icon(Icons.search),
+                      selectedIcon: const Icon(Icons.search),
+                      label: S.get('nav_discover'),
+                    ),
+                    NavigationDestination(
+                      icon: const Icon(Icons.star_outline),
+                      selectedIcon: const Icon(Icons.star),
+                      label: S.get('nav_favorites'),
+                    ),
+                    NavigationDestination(
+                      icon: const Icon(Icons.person_outline),
+                      selectedIcon: const Icon(Icons.person),
+                      label: S.get('nav_me'),
+                    ),
+                  ],
                 ),
-                NavigationDestination(
-                  icon: Icon(Icons.search),
-                  selectedIcon: Icon(Icons.search),
-                  label: '发现',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.star_outline),
-                  selectedIcon: Icon(Icons.star),
-                  label: '收藏',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.person_outline),
-                  selectedIcon: Icon(Icons.person),
-                  label: '我的',
-                ),
-              ],
-            ),
+              );
+            },
           );
         },
       ),
@@ -127,14 +152,16 @@ class _LoginRequiredPage extends StatelessWidget {
               Icon(Icons.lock_outline, size: 64, color: colorScheme.outline),
               const SizedBox(height: 16),
               Text(
-                '登录后即可使用$feature功能',
+                S
+                    .get('login_required_feature')
+                    .replaceAll('{feature}', feature),
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: () => context.go('/login'),
                 icon: const Icon(Icons.login),
-                label: const Text('去登录'),
+                label: Text(S.get('login')),
               ),
             ],
           ),
@@ -154,7 +181,7 @@ class _MePage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('我的'),
+        title: Text(S.get('nav_me')),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -179,13 +206,13 @@ class _MePage extends StatelessWidget {
                 _buildMenuItem(
                   context,
                   icon: Icons.history,
-                  title: '浏览历史',
+                  title: S.get('browse_history'),
                   onTap: () => context.push('/history'),
                 ),
                 _buildMenuItem(
                   context,
                   icon: Icons.star_outline,
-                  title: '我的收藏',
+                  title: S.get('my_favorites'),
                   onTap: () => context.push('/favorites'),
                 ),
               ],
@@ -194,13 +221,13 @@ class _MePage extends StatelessWidget {
                 _buildMenuItem(
                   context,
                   icon: Icons.history,
-                  title: '浏览历史',
+                  title: S.get('browse_history'),
                   onTap: () => context.push('/history'),
                 ),
               _buildMenuItem(
                 context,
                 icon: Icons.settings_outlined,
-                title: '设置',
+                title: S.get('settings'),
                 onTap: () => context.push('/settings'),
               ),
             ],
@@ -227,10 +254,13 @@ class _MePage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Text('未登录', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              S.get('not_logged_in'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 4),
             Text(
-              '登录后可查看收藏、个人资料等',
+              S.get('login_hint'),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -239,7 +269,7 @@ class _MePage extends StatelessWidget {
             FilledButton.icon(
               onPressed: () => context.go('/login'),
               icon: const Icon(Icons.login),
-              label: const Text('去登录'),
+              label: Text(S.get('login')),
             ),
           ],
         ),
@@ -330,17 +360,17 @@ class _MePage extends StatelessWidget {
                   children: [
                     _buildStatItem(
                       context,
-                      label: '微博',
+                      label: S.get('posts_count'),
                       count: user.statusesCount,
                     ),
                     _buildStatItem(
                       context,
-                      label: '关注',
+                      label: S.get('following_count'),
                       count: user.friendsCount,
                     ),
                     _buildStatItem(
                       context,
-                      label: '粉丝',
+                      label: S.get('followers_count'),
                       count: user.followersCount,
                     ),
                   ],

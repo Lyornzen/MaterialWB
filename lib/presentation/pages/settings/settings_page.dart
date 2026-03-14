@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_weibo/core/l10n/app_localizations.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_bloc.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_event.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_state.dart';
+import 'package:material_weibo/presentation/blocs/locale/locale_cubit.dart';
 import 'package:material_weibo/presentation/blocs/theme/theme_cubit.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -11,16 +13,16 @@ class SettingsPage extends StatelessWidget {
 
   /// 预设主题色列表
   static const List<_PresetColor> _presetColors = [
-    _PresetColor(name: '微博红', color: Color(0xFFE6162D)),
-    _PresetColor(name: '天空蓝', color: Color(0xFF2196F3)),
-    _PresetColor(name: '翠绿', color: Color(0xFF4CAF50)),
-    _PresetColor(name: '深紫', color: Color(0xFF673AB7)),
-    _PresetColor(name: '橙色', color: Color(0xFFFF9800)),
-    _PresetColor(name: '青色', color: Color(0xFF009688)),
-    _PresetColor(name: '粉色', color: Color(0xFFE91E63)),
-    _PresetColor(name: '靛蓝', color: Color(0xFF3F51B5)),
-    _PresetColor(name: '棕色', color: Color(0xFF795548)),
-    _PresetColor(name: '蓝灰', color: Color(0xFF607D8B)),
+    _PresetColor(nameKey: 'color_weibo_red', color: Color(0xFFE6162D)),
+    _PresetColor(nameKey: 'color_sky_blue', color: Color(0xFF2196F3)),
+    _PresetColor(nameKey: 'color_emerald', color: Color(0xFF4CAF50)),
+    _PresetColor(nameKey: 'color_deep_purple', color: Color(0xFF673AB7)),
+    _PresetColor(nameKey: 'color_orange', color: Color(0xFFFF9800)),
+    _PresetColor(nameKey: 'color_teal', color: Color(0xFF009688)),
+    _PresetColor(nameKey: 'color_pink', color: Color(0xFFE91E63)),
+    _PresetColor(nameKey: 'color_indigo', color: Color(0xFF3F51B5)),
+    _PresetColor(nameKey: 'color_brown', color: Color(0xFF795548)),
+    _PresetColor(nameKey: 'color_blue_grey', color: Color(0xFF607D8B)),
   ];
 
   @override
@@ -28,13 +30,103 @@ class SettingsPage extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
+      appBar: AppBar(title: Text(S.get('settings'))),
       body: BlocBuilder<ThemeCubit, ThemeSettings>(
         builder: (context, settings) {
           return ListView(
             children: [
+              // ── 用户信息 ──
+              BlocBuilder<AuthBloc, AuthState>(
+                builder: (context, authState) {
+                  if (authState is AuthAuthenticated &&
+                      authState.user != null) {
+                    final user = authState.user!;
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 28,
+                                backgroundColor: colorScheme.primaryContainer,
+                                backgroundImage: user.profileImageUrl.isNotEmpty
+                                    ? NetworkImage(user.profileImageUrl)
+                                    : null,
+                                child: user.profileImageUrl.isEmpty
+                                    ? Icon(
+                                        Icons.person,
+                                        size: 28,
+                                        color: colorScheme.onPrimaryContainer,
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            user.screenName,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (user.verified == true)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              left: 4,
+                                            ),
+                                            child: Icon(
+                                              Icons.verified,
+                                              size: 16,
+                                              color: colorScheme.primary,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    if (user.description != null &&
+                                        user.description!.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          user.description!,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+
               // ── 外观模式 ──
-              const _SectionHeader(title: '外观'),
+              _SectionHeader(title: S.get('appearance')),
               RadioGroup<ThemeMode>(
                 groupValue: settings.themeMode,
                 onChanged: (value) {
@@ -45,15 +137,15 @@ class SettingsPage extends StatelessWidget {
                 child: Column(
                   children: [
                     RadioListTile<ThemeMode>(
-                      title: const Text('跟随系统'),
+                      title: Text(S.get('follow_system')),
                       value: ThemeMode.system,
                     ),
                     RadioListTile<ThemeMode>(
-                      title: const Text('浅色模式'),
+                      title: Text(S.get('light_mode')),
                       value: ThemeMode.light,
                     ),
                     RadioListTile<ThemeMode>(
-                      title: const Text('深色模式'),
+                      title: Text(S.get('dark_mode')),
                       value: ThemeMode.dark,
                     ),
                   ],
@@ -63,7 +155,7 @@ class SettingsPage extends StatelessWidget {
               const Divider(),
 
               // ── 主题色 ──
-              const _SectionHeader(title: '主题色'),
+              _SectionHeader(title: S.get('theme_color')),
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -74,7 +166,7 @@ class SettingsPage extends StatelessWidget {
                   children: [
                     // 跟随系统选项
                     _ColorOption(
-                      label: '跟随系统 / 默认',
+                      label: S.get('system_default'),
                       color: null,
                       isSelected: settings.seedColor == null,
                       onTap: () {
@@ -93,7 +185,7 @@ class SettingsPage extends StatelessWidget {
                                 preset.color.toARGB32();
                         return _ColorCircle(
                           color: preset.color,
-                          label: preset.name,
+                          label: S.get(preset.nameKey),
                           isSelected: isSelected,
                           onTap: () {
                             context.read<ThemeCubit>().setSeedColor(
@@ -108,7 +200,7 @@ class SettingsPage extends StatelessWidget {
                     OutlinedButton.icon(
                       onPressed: () => _showCustomColorPicker(context),
                       icon: const Icon(Icons.palette_outlined, size: 18),
-                      label: const Text('自定义颜色'),
+                      label: Text(S.get('custom_color')),
                     ),
                   ],
                 ),
@@ -117,7 +209,7 @@ class SettingsPage extends StatelessWidget {
               const Divider(),
 
               // ── 字体大小 ──
-              const _SectionHeader(title: '字体大小'),
+              _SectionHeader(title: S.get('font_size')),
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -144,7 +236,7 @@ class SettingsPage extends StatelessWidget {
                       ],
                     ),
                     Text(
-                      '预览文字 - ${(settings.fontScale * 100).round()}%',
+                      '${S.get('preview_text')} - ${(settings.fontScale * 100).round()}%',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
@@ -153,10 +245,35 @@ class SettingsPage extends StatelessWidget {
 
               const Divider(),
 
+              // ── 语言 ──
+              _SectionHeader(title: S.get('language')),
+              BlocBuilder<LocaleCubit, AppLocale>(
+                builder: (context, currentLocale) {
+                  return RadioGroup<AppLocale>(
+                    groupValue: currentLocale,
+                    onChanged: (value) {
+                      if (value != null) {
+                        context.read<LocaleCubit>().setLocale(value);
+                      }
+                    },
+                    child: Column(
+                      children: AppLocale.values.map((locale) {
+                        return RadioListTile<AppLocale>(
+                          title: Text(locale.displayName),
+                          value: locale,
+                        );
+                      }).toList(),
+                    ),
+                  );
+                },
+              ),
+
+              const Divider(),
+
               // ── 关于 ──
-              const _SectionHeader(title: '关于'),
+              _SectionHeader(title: S.get('about')),
               ListTile(
-                title: const Text('版本'),
+                title: Text(S.get('version')),
                 subtitle: const Text('1.0.0'),
                 leading: const Icon(Icons.info_outline),
               ),
@@ -171,7 +288,7 @@ class SettingsPage extends StatelessWidget {
                       child: FilledButton.icon(
                         onPressed: () => context.go('/login'),
                         icon: const Icon(Icons.login),
-                        label: const Text('去登录'),
+                        label: Text(S.get('login')),
                         style: FilledButton.styleFrom(
                           minimumSize: const Size(double.infinity, 48),
                         ),
@@ -183,13 +300,13 @@ class SettingsPage extends StatelessWidget {
                       ? authState.loginMethod
                       : 'oauth';
                   final methodLabel = loginMethod == 'cookie'
-                      ? 'Cookie 登录'
-                      : 'OAuth 登录';
+                      ? S.get('cookie_login')
+                      : S.get('oauth_login');
 
                   return Column(
                     children: [
                       ListTile(
-                        title: const Text('登录方式'),
+                        title: Text(S.get('login_method')),
                         subtitle: Text(methodLabel),
                         leading: const Icon(Icons.account_circle_outlined),
                       ),
@@ -199,7 +316,7 @@ class SettingsPage extends StatelessWidget {
                           onPressed: () => _showLogoutDialog(context),
                           icon: Icon(Icons.logout, color: colorScheme.error),
                           label: Text(
-                            '退出登录',
+                            S.get('logout'),
                             style: TextStyle(color: colorScheme.error),
                           ),
                           style: OutlinedButton.styleFrom(
@@ -223,12 +340,12 @@ class SettingsPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('退出登录'),
-        content: const Text('确定要退出登录吗？退出后将返回登录页面。'),
+        title: Text(S.get('logout')),
+        content: Text(S.get('logout_confirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
+            child: Text(S.get('cancel')),
           ),
           FilledButton(
             onPressed: () {
@@ -236,7 +353,7 @@ class SettingsPage extends StatelessWidget {
               context.read<AuthBloc>().add(const AuthLogoutRequested());
               context.go('/login');
             },
-            child: const Text('确定'),
+            child: Text(S.get('confirm')),
           ),
         ],
       ),
@@ -253,7 +370,7 @@ class SettingsPage extends StatelessWidget {
         builder: (ctx, setState) {
           final color = HSVColor.fromAHSV(1, hue, 0.8, 0.9).toColor();
           return AlertDialog(
-            title: const Text('选择自定义颜色'),
+            title: Text(S.get('pick_custom_color')),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -277,7 +394,7 @@ class SettingsPage extends StatelessWidget {
                 // 色相滑块
                 Row(
                   children: [
-                    const Text('色相'),
+                    Text(S.get('hue')),
                     Expanded(
                       child: SliderTheme(
                         data: SliderThemeData(
@@ -318,14 +435,14 @@ class SettingsPage extends StatelessWidget {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('取消'),
+                child: Text(S.get('cancel')),
               ),
               FilledButton(
                 onPressed: () {
                   cubit.setSeedColor(color);
                   Navigator.pop(ctx);
                 },
-                child: const Text('确定'),
+                child: Text(S.get('confirm')),
               ),
             ],
           );
@@ -479,7 +596,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _PresetColor {
-  final String name;
+  final String nameKey;
   final Color color;
-  const _PresetColor({required this.name, required this.color});
+  const _PresetColor({required this.nameKey, required this.color});
 }

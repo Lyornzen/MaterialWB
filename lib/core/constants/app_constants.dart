@@ -14,6 +14,7 @@ class AppConstants {
   static const String keyImageQuality = 'image_quality';
   static const String keySeedColor = 'seed_color';
   static const String keyCookie = 'web_cookie';
+  static const String keyLocale = 'locale';
 
   // Hive / DB 相关
   static const String dbName = 'material_weibo.db';

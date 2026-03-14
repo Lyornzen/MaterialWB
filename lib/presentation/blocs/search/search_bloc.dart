@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
@@ -120,18 +121,22 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     emit(const SearchLoading());
     try {
       final data = await webApi.search(event.query);
+      debugPrint('Search response keys: ${data.keys.toList()}');
       final List<WeiboPost> posts = [];
 
       // 格式1: PC web searchList — {"ok":1, "statuses":[...]}
       final statuses = data['statuses'] as List?;
       if (statuses != null) {
+        debugPrint('Format 1: found ${statuses.length} statuses');
         for (final s in statuses) {
           if (s is Map<String, dynamic>) {
             try {
               if (!WeiboPostModel.isAdPost(s)) {
                 posts.add(WeiboPostModel.fromJson(s));
               }
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('Parse post error: $e');
+            }
           }
         }
       }
@@ -142,13 +147,16 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         if (dataInner is Map<String, dynamic>) {
           final innerStatuses = dataInner['statuses'] as List?;
           if (innerStatuses != null) {
+            debugPrint('Format 2: found ${innerStatuses.length} statuses');
             for (final s in innerStatuses) {
               if (s is Map<String, dynamic>) {
                 try {
                   if (!WeiboPostModel.isAdPost(s)) {
                     posts.add(WeiboPostModel.fromJson(s));
                   }
-                } catch (_) {}
+                } catch (e) {
+                  debugPrint('Parse post error: $e');
+                }
               }
             }
           }
@@ -158,6 +166,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       // 格式3: m.weibo.cn cards 格式 (回退)
       if (posts.isEmpty) {
         final cards = (data['data']?['cards'] as List?) ?? [];
+        debugPrint('Format 3: found ${cards.length} cards');
         for (final card in cards) {
           if (card is! Map<String, dynamic>) continue;
           final cardType = card['card_type'];
@@ -169,7 +178,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
               if (!WeiboPostModel.isAdPost(mblog)) {
                 posts.add(WeiboPostModel.fromJson(mblog));
               }
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('Parse card mblog error: $e');
+            }
           }
 
           // card_group 内嵌的卡片（搜索结果常用此结构）
@@ -184,16 +195,20 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
                   if (!WeiboPostModel.isAdPost(mblog)) {
                     posts.add(WeiboPostModel.fromJson(mblog));
                   }
-                } catch (_) {}
+                } catch (e) {
+                  debugPrint('Parse card_group mblog error: $e');
+                }
               }
             }
           }
         }
       }
 
+      debugPrint('Search total parsed posts: ${posts.length}');
       emit(SearchResultLoaded(posts: posts, query: event.query));
     } catch (e) {
-      emit(SearchError(message: e.toString()));
+      debugPrint('Search error: $e');
+      emit(SearchError(message: '搜索失败: $e'));
     }
   }
 

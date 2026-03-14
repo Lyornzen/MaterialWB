@@ -30,6 +30,12 @@ class PreferencesHelper {
 
   int? getSeedColor() => prefs.getInt(AppConstants.keySeedColor);
 
+  // ── 语言 ──
+  Future<void> setLocale(String locale) =>
+      prefs.setString(AppConstants.keyLocale, locale);
+
+  String getLocale() => prefs.getString(AppConstants.keyLocale) ?? 'zh-CN';
+
   // ── 图片质量 ──
   Future<void> setImageQuality(String quality) =>
       prefs.setString(AppConstants.keyImageQuality, quality);
@@ -53,4 +59,10 @@ class PreferencesHelper {
 
   // ── 清除所有 ──
   Future<void> clearAll() => prefs.clear();
+
+  /// 只清除认证相关数据，保留用户偏好（主题、字体、颜色等）
+  Future<void> clearAuthData() async {
+    await prefs.remove(_keyLoginMethod);
+    await prefs.remove(AppConstants.keyUserId);
+  }
 }

@@ -25,6 +25,7 @@ import 'package:material_weibo/presentation/blocs/favorite/favorite_cubit.dart';
 import 'package:material_weibo/presentation/blocs/history/history_cubit.dart';
 import 'package:material_weibo/presentation/blocs/search/search_bloc.dart';
 import 'package:material_weibo/presentation/blocs/theme/theme_cubit.dart';
+import 'package:material_weibo/presentation/blocs/locale/locale_cubit.dart';
 import 'package:material_weibo/presentation/blocs/profile/profile_cubit.dart';
 
 final sl = GetIt.instance;
@@ -110,5 +111,8 @@ Future<void> initDependencies() async {
   );
   sl.registerSingleton<ThemeCubit>(
     ThemeCubit(prefsHelper: sl<PreferencesHelper>()),
+  );
+  sl.registerSingleton<LocaleCubit>(
+    LocaleCubit(prefsHelper: sl<PreferencesHelper>()),
   );
 }

@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_weibo/core/di/injection.dart';
+import 'package:material_weibo/core/errors/exceptions.dart';
 import 'package:material_weibo/core/network/dio_client.dart';
 import 'package:material_weibo/domain/repositories/auth_repository.dart';
 import 'auth_event.dart';
@@ -38,14 +40,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (isLoggedIn) {
         final method = authRepository.getLoginMethod() ?? 'oauth';
         if (method == 'cookie') {
-          // Cookie 登录，同步 cookie 到拦截器并获取用户信息
+          // Cookie 登录，同步 cookie 到拦截器并尝试获取用户信息
           final cookie = await authRepository.getSavedCookie();
           if (cookie != null && cookie.isNotEmpty) {
             sl<DioClient>().updateCookie(cookie);
-          }
-          try {
-            final cookie = await authRepository.getSavedCookie();
-            if (cookie != null) {
+            try {
               final user = await authRepository.getCurrentUserByCookie();
               emit(
                 AuthAuthenticated(
@@ -54,12 +53,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
                   loginMethod: 'cookie',
                 ),
               );
-            } else {
+            } on AuthException {
+              // 明确的认证失败（401/403）才清除 cookie
+              debugPrint('Cookie 认证失败，清除登录状态');
+              await authRepository.logout();
               emit(const AuthUnauthenticated());
+            } catch (e) {
+              // 网络错误等非认证问题 — 保留 cookie，仍然视为已登录
+              debugPrint('获取用户信息失败（保留登录态）: $e');
+              emit(AuthAuthenticated(token: cookie, loginMethod: 'cookie'));
             }
-          } catch (_) {
-            // Cookie 过期，回到未登录状态
-            await authRepository.logout();
+          } else {
             emit(const AuthUnauthenticated());
           }
         } else {
