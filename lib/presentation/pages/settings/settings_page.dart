@@ -127,29 +127,39 @@ class SettingsPage extends StatelessWidget {
 
               // ── 外观模式 ──
               _SectionHeader(title: S.get('appearance')),
-              RadioGroup<ThemeMode>(
-                groupValue: settings.themeMode,
-                onChanged: (value) {
-                  if (value != null) {
-                    context.read<ThemeCubit>().setThemeMode(value);
-                  }
-                },
-                child: Column(
-                  children: [
-                    RadioListTile<ThemeMode>(
-                      title: Text(S.get('follow_system')),
-                      value: ThemeMode.system,
-                    ),
-                    RadioListTile<ThemeMode>(
-                      title: Text(S.get('light_mode')),
-                      value: ThemeMode.light,
-                    ),
-                    RadioListTile<ThemeMode>(
-                      title: Text(S.get('dark_mode')),
-                      value: ThemeMode.dark,
-                    ),
-                  ],
-                ),
+              Column(
+                children: [
+                  RadioListTile<ThemeMode>(
+                    title: Text(S.get('follow_system')),
+                    value: ThemeMode.system,
+                    groupValue: settings.themeMode,
+                    onChanged: (value) {
+                      if (value != null) {
+                        context.read<ThemeCubit>().setThemeMode(value);
+                      }
+                    },
+                  ),
+                  RadioListTile<ThemeMode>(
+                    title: Text(S.get('light_mode')),
+                    value: ThemeMode.light,
+                    groupValue: settings.themeMode,
+                    onChanged: (value) {
+                      if (value != null) {
+                        context.read<ThemeCubit>().setThemeMode(value);
+                      }
+                    },
+                  ),
+                  RadioListTile<ThemeMode>(
+                    title: Text(S.get('dark_mode')),
+                    value: ThemeMode.dark,
+                    groupValue: settings.themeMode,
+                    onChanged: (value) {
+                      if (value != null) {
+                        context.read<ThemeCubit>().setThemeMode(value);
+                      }
+                    },
+                  ),
+                ],
               ),
 
               const Divider(),
@@ -249,21 +259,19 @@ class SettingsPage extends StatelessWidget {
               _SectionHeader(title: S.get('language')),
               BlocBuilder<LocaleCubit, AppLocale>(
                 builder: (context, currentLocale) {
-                  return RadioGroup<AppLocale>(
-                    groupValue: currentLocale,
-                    onChanged: (value) {
-                      if (value != null) {
-                        context.read<LocaleCubit>().setLocale(value);
-                      }
-                    },
-                    child: Column(
-                      children: AppLocale.values.map((locale) {
-                        return RadioListTile<AppLocale>(
-                          title: Text(locale.displayName),
-                          value: locale,
-                        );
-                      }).toList(),
-                    ),
+                  return Column(
+                    children: AppLocale.values.map((locale) {
+                      return RadioListTile<AppLocale>(
+                        title: Text(locale.displayName),
+                        value: locale,
+                        groupValue: currentLocale,
+                        onChanged: (value) {
+                          if (value != null) {
+                            context.read<LocaleCubit>().setLocale(value);
+                          }
+                        },
+                      );
+                    }).toList(),
                   );
                 },
               ),
@@ -348,10 +356,17 @@ class SettingsPage extends StatelessWidget {
             child: Text(S.get('cancel')),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              context.read<AuthBloc>().add(const AuthLogoutRequested());
-              context.go('/login');
+              final authBloc = context.read<AuthBloc>();
+              authBloc.add(const AuthLogoutRequested());
+              // 等待 bloc 处理完 logout 事件，状态变为 AuthUnauthenticated
+              await authBloc.stream.firstWhere(
+                (state) => state is AuthUnauthenticated,
+              );
+              if (context.mounted) {
+                context.go('/login');
+              }
             },
             child: Text(S.get('confirm')),
           ),

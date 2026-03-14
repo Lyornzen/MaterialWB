@@ -13,6 +13,12 @@ class Comment extends Equatable {
   /// 评论配图 URL（图片回复）
   final String? picUrl;
 
+  /// IP 属地 / 来源（如 "来自 北京"）
+  final String? source;
+
+  /// 楼层号
+  final int? floorNumber;
+
   const Comment({
     required this.id,
     required this.text,
@@ -21,6 +27,8 @@ class Comment extends Equatable {
     this.likeCount = 0,
     this.replyComment,
     this.picUrl,
+    this.source,
+    this.floorNumber,
   });
 
   @override

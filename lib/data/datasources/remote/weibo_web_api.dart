@@ -148,9 +148,11 @@ class WeiboWebApi {
   }
 
   /// 获取评论列表（PC web 端点，游客可用）
+  /// [sortByTime] 为 true 时按时间排序，false 时按热度排序（默认）
   Future<Map<String, dynamic>> getHotComments(
     String postId, {
     int maxId = 0,
+    bool sortByTime = false,
   }) async {
     await getVisitorCookie();
     final response = await dioClient.pcWebGet(
@@ -158,12 +160,12 @@ class WeiboWebApi {
       queryParameters: {
         'id': postId,
         'is_show_bulletin': '2',
-        'is_mix': '0',
+        'is_mix': sortByTime ? '0' : '1',
         'count': '20',
         'uid': '',
         'fetch_level': '0',
         'locale': 'zh-CN',
-        if (maxId > 0) 'flow': '0',
+        'flow': sortByTime ? '1' : '0',
         if (maxId > 0) 'max_id': maxId,
       },
     );
