@@ -18,31 +18,35 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
-  DateTime? _lastBackPress;
 
   /// 处理 Android 返回手势：
   /// - 如果不在首页 tab → 切回首页 tab
-  /// - 如果在首页 tab → 双击退出（2秒内再按一次退出应用）
+  /// - 如果在首页 tab → 弹出确认对话框
   Future<bool> _onWillPop() async {
     if (_currentIndex != 0) {
       setState(() => _currentIndex = 0);
       return false;
     }
-    final now = DateTime.now();
-    if (_lastBackPress != null &&
-        now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
-      // 双击退出
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('退出应用'),
+        content: const Text('确定要退出 Material 微博吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+    if (shouldExit == true) {
       SystemNavigator.pop();
       return true;
-    }
-    _lastBackPress = now;
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('再按一次退出应用'),
-          duration: Duration(seconds: 2),
-        ),
-      );
     }
     return false;
   }

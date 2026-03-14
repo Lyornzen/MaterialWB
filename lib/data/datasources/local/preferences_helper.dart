@@ -20,6 +20,16 @@ class PreferencesHelper {
 
   double getFontScale() => prefs.getDouble(AppConstants.keyFontScale) ?? 1.0;
 
+  // ── 主题色 ──
+  Future<void> setSeedColor(int? colorValue) {
+    if (colorValue == null) {
+      return prefs.remove(AppConstants.keySeedColor);
+    }
+    return prefs.setInt(AppConstants.keySeedColor, colorValue);
+  }
+
+  int? getSeedColor() => prefs.getInt(AppConstants.keySeedColor);
+
   // ── 图片质量 ──
   Future<void> setImageQuality(String quality) =>
       prefs.setString(AppConstants.keyImageQuality, quality);

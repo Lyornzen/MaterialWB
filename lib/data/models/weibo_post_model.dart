@@ -74,17 +74,28 @@ class WeiboPostModel extends WeiboPost {
     String? videoThumbnailUrl;
     final pageInfo = json['page_info'];
     if (pageInfo != null && pageInfo['type'] == 'video') {
-      final mediaInfo = pageInfo['media_info'] ?? pageInfo['urls'];
-      if (mediaInfo != null) {
-        videoUrl =
-            mediaInfo['mp4_720p_mp4'] ??
-            mediaInfo['mp4_hd_mp4'] ??
-            mediaInfo['mp4_sd_mp4'] ??
-            mediaInfo['stream_url'];
-      }
+      videoUrl = _extractVideoUrl(pageInfo);
       // 视频封面图
       videoThumbnailUrl =
           (pageInfo['page_pic']?['url'] ?? pageInfo['page_pic']) as String?;
+    }
+
+    // mix_media_info: 新版混合媒体格式（图片+视频混排的轮播帖）
+    if (videoUrl == null && json['mix_media_info'] != null) {
+      final mixItems = json['mix_media_info']['items'] as List?;
+      if (mixItems != null) {
+        for (final item in mixItems) {
+          if (item['type'] == 'video' || item['type'] == 'pic') {
+            final extracted = _extractVideoUrlFromMixItem(item);
+            if (extracted != null) {
+              videoUrl = extracted;
+              videoThumbnailUrl ??=
+                  (item['cover']?['url'] ?? item['pic']?['url']) as String?;
+              break;
+            }
+          }
+        }
+      }
     }
 
     // 解析转发
@@ -236,5 +247,95 @@ class WeiboPostModel extends WeiboPost {
     }
 
     return false;
+  }
+
+  /// 从 page_info 中提取最佳画质视频 URL
+  static String? _extractVideoUrl(Map<String, dynamic> pageInfo) {
+    // 1. 尝试 playback_list（PC web 高清格式）
+    final playbackList =
+        pageInfo['media_info']?['playback_list'] as List? ??
+        pageInfo['playback_list'] as List?;
+    if (playbackList != null && playbackList.isNotEmpty) {
+      // playback_list 按画质从高到低排列
+      for (final item in playbackList) {
+        final playInfo = item['play_info'];
+        if (playInfo != null) {
+          final url = playInfo['url'] as String?;
+          if (url != null && url.isNotEmpty) return url;
+        }
+      }
+    }
+
+    // 2. 尝试 media_info / urls 中的直链
+    final mediaInfo = pageInfo['media_info'] ?? pageInfo['urls'];
+    if (mediaInfo != null) {
+      // 按画质优先级: 1080p > 720p > HD > SD > stream_url_hd > stream_url
+      final url =
+          mediaInfo['mp4_1080p_mp4'] ??
+          mediaInfo['mp4_720p_mp4'] ??
+          mediaInfo['mp4_hd_mp4'] ??
+          mediaInfo['hevc_mp4_hd'] ??
+          mediaInfo['mp4_sd_mp4'] ??
+          mediaInfo['mp4_ld_mp4'] ??
+          mediaInfo['stream_url_hd'] ??
+          mediaInfo['stream_url'];
+      if (url != null && (url as String).isNotEmpty) return url;
+
+      // 3. 尝试 video_details（部分 PC web 格式）
+      final videoDetails = mediaInfo['video_details'] as List?;
+      if (videoDetails != null) {
+        for (final detail in videoDetails) {
+          final label = (detail['label'] ?? '').toString();
+          // 优先选择 1080p/720p
+          if (label.contains('1080') || label.contains('720')) {
+            final detailUrl = detail['url'] as String?;
+            if (detailUrl != null && detailUrl.isNotEmpty) return detailUrl;
+          }
+        }
+        // 回退到任意可用的 video_detail
+        for (final detail in videoDetails) {
+          final detailUrl = detail['url'] as String?;
+          if (detailUrl != null && detailUrl.isNotEmpty) return detailUrl;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /// 从 mix_media_info 的单个 item 中提取视频 URL
+  static String? _extractVideoUrlFromMixItem(Map<String, dynamic> item) {
+    // mix item 可能有 video_info 子对象
+    final videoInfo = item['video_info'] as Map<String, dynamic>?;
+    if (videoInfo != null) {
+      // 尝试 playback_list
+      final playbackList = videoInfo['playback_list'] as List?;
+      if (playbackList != null) {
+        for (final pb in playbackList) {
+          final url = pb['play_info']?['url'] as String?;
+          if (url != null && url.isNotEmpty) return url;
+        }
+      }
+      // 尝试 media_info
+      final mediaInfo = videoInfo['media_info'] as Map<String, dynamic>?;
+      if (mediaInfo != null) {
+        final url =
+            mediaInfo['mp4_720p_mp4'] ??
+            mediaInfo['mp4_hd_mp4'] ??
+            mediaInfo['mp4_sd_mp4'] ??
+            mediaInfo['stream_url_hd'] ??
+            mediaInfo['stream_url'];
+        if (url != null && (url as String).isNotEmpty) return url;
+      }
+      // 直接 stream_url
+      final streamUrl = videoInfo['stream_url'] as String?;
+      if (streamUrl != null && streamUrl.isNotEmpty) return streamUrl;
+    }
+
+    // 部分 mix item 直接带 url 字段
+    final directUrl = item['stream_url'] as String?;
+    if (directUrl != null && directUrl.isNotEmpty) return directUrl;
+
+    return null;
   }
 }

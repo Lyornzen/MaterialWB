@@ -12,6 +12,7 @@ class AppConstants {
   static const String keyThemeMode = 'theme_mode';
   static const String keyFontScale = 'font_scale';
   static const String keyImageQuality = 'image_quality';
+  static const String keySeedColor = 'seed_color';
   static const String keyCookie = 'web_cookie';
 
   // Hive / DB 相关

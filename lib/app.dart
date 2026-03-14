@@ -28,17 +28,28 @@ class MaterialWeiboApp extends StatelessWidget {
         BlocProvider<HistoryCubit>(create: (_) => sl<HistoryCubit>()),
         BlocProvider<SearchBloc>(create: (_) => sl<SearchBloc>()),
       ],
-      child: BlocBuilder<ThemeCubit, ThemeMode>(
-        builder: (context, themeMode) {
+      child: BlocBuilder<ThemeCubit, ThemeSettings>(
+        builder: (context, settings) {
           return DynamicColorBuilder(
             builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
-              return MaterialApp.router(
-                title: 'Material 微博',
-                debugShowCheckedModeBanner: false,
-                themeMode: themeMode,
-                theme: AppTheme.light(dynamicScheme: lightDynamic),
-                darkTheme: AppTheme.dark(dynamicScheme: darkDynamic),
-                routerConfig: AppRouter.router,
+              return MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: TextScaler.linear(settings.fontScale)),
+                child: MaterialApp.router(
+                  title: 'Material \u5fae\u535a',
+                  debugShowCheckedModeBanner: false,
+                  themeMode: settings.themeMode,
+                  theme: AppTheme.light(
+                    dynamicScheme: lightDynamic,
+                    seedColor: settings.seedColor,
+                  ),
+                  darkTheme: AppTheme.dark(
+                    dynamicScheme: darkDynamic,
+                    seedColor: settings.seedColor,
+                  ),
+                  routerConfig: AppRouter.router,
+                ),
               );
             },
           );
