@@ -174,34 +174,48 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return BlocListener<AuthBloc, AuthState>(
-      listener: (context, state) {
-        if (state is AuthAuthenticated || state is AuthGuest) {
-          context.go('/home');
-        } else if (state is AuthError) {
-          if (mounted) {
-            setState(() => _isProcessingLogin = false);
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          // 如果在 WebView 界面，返回到登录菜单
+          if (_webViewMode != _WebViewMode.none) {
+            setState(() => _webViewMode = _WebViewMode.none);
+          } else {
+            // 在登录菜单界面按返回，以游客模式进入主页
+            context.read<AuthBloc>().add(const AuthGuestRequested());
           }
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(state.message)));
         }
       },
-      child: Scaffold(
-        body: _isProcessingLogin
-            ? const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('正在登录...'),
-                  ],
-                ),
-              )
-            : _webViewMode != _WebViewMode.none
-            ? _buildWebView(context)
-            : _buildLoginMenu(context, colorScheme),
+      child: BlocListener<AuthBloc, AuthState>(
+        listener: (context, state) {
+          if (state is AuthAuthenticated || state is AuthGuest) {
+            context.go('/home');
+          } else if (state is AuthError) {
+            if (mounted) {
+              setState(() => _isProcessingLogin = false);
+            }
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(state.message)));
+          }
+        },
+        child: Scaffold(
+          body: _isProcessingLogin
+              ? const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('正在登录...'),
+                    ],
+                  ),
+                )
+              : _webViewMode != _WebViewMode.none
+              ? _buildWebView(context)
+              : _buildLoginMenu(context, colorScheme),
+        ),
       ),
     );
   }
