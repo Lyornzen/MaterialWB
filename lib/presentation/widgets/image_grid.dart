@@ -52,10 +52,14 @@ class ImageGrid extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 240),
+          constraints: const BoxConstraints(
+            maxHeight: 500,
+            maxWidth: double.infinity,
+          ),
           child: CachedNetworkImage(
             imageUrl: url,
-            fit: BoxFit.cover,
+            fit: BoxFit.fitWidth,
+            width: double.infinity,
             placeholder: (_, _) => Container(
               height: 200,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,

@@ -1,7 +1,9 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
+import 'package:material_weibo/data/models/user_model.dart';
 import 'package:material_weibo/data/models/weibo_post_model.dart';
+import 'package:material_weibo/domain/entities/user.dart';
 import 'package:material_weibo/domain/entities/weibo_post.dart';
 
 // Events
@@ -14,6 +16,13 @@ abstract class SearchEvent extends Equatable {
 class SearchQuerySubmitted extends SearchEvent {
   final String query;
   const SearchQuerySubmitted({required this.query});
+  @override
+  List<Object?> get props => [query];
+}
+
+class SearchUserQuerySubmitted extends SearchEvent {
+  final String query;
+  const SearchUserQuerySubmitted({required this.query});
   @override
   List<Object?> get props => [query];
 }
@@ -52,6 +61,14 @@ class SearchResultLoaded extends SearchState {
   List<Object?> get props => [posts, query];
 }
 
+class SearchUserResultLoaded extends SearchState {
+  final List<WeiboUser> users;
+  final String query;
+  const SearchUserResultLoaded({required this.users, required this.query});
+  @override
+  List<Object?> get props => [users, query];
+}
+
 class SearchError extends SearchState {
   final String message;
   const SearchError({required this.message});
@@ -66,6 +83,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   SearchBloc({required this.webApi}) : super(const SearchInitial()) {
     on<SearchHotLoaded>(_onHotLoaded);
     on<SearchQuerySubmitted>(_onQuerySubmitted);
+    on<SearchUserQuerySubmitted>(_onUserQuerySubmitted);
   }
 
   Future<void> _onHotLoaded(
@@ -174,6 +192,35 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       }
 
       emit(SearchResultLoaded(posts: posts, query: event.query));
+    } catch (e) {
+      emit(SearchError(message: e.toString()));
+    }
+  }
+
+  Future<void> _onUserQuerySubmitted(
+    SearchUserQuerySubmitted event,
+    Emitter<SearchState> emit,
+  ) async {
+    emit(const SearchLoading());
+    try {
+      final data = await webApi.searchUsers(event.query);
+      final List<WeiboUser> users = [];
+
+      // PC web 格式: { "ok": 1, "data": { "users": [...] } }
+      final userList =
+          (data['data']?['users'] as List?) ??
+          (data['users'] as List?) ??
+          (data['data'] as List?) ??
+          [];
+      for (final item in userList) {
+        if (item is Map<String, dynamic>) {
+          try {
+            users.add(UserModel.fromJson(item));
+          } catch (_) {}
+        }
+      }
+
+      emit(SearchUserResultLoaded(users: users, query: event.query));
     } catch (e) {
       emit(SearchError(message: e.toString()));
     }

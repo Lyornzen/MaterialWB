@@ -10,6 +10,9 @@ class Comment extends Equatable {
   final int likeCount;
   final Comment? replyComment;
 
+  /// 评论配图 URL（图片回复）
+  final String? picUrl;
+
   const Comment({
     required this.id,
     required this.text,
@@ -17,6 +20,7 @@ class Comment extends Equatable {
     required this.createdAt,
     this.likeCount = 0,
     this.replyComment,
+    this.picUrl,
   });
 
   @override

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_weibo/core/di/injection.dart';
-import 'package:material_weibo/core/utils/html_parser.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
 import 'package:material_weibo/data/models/weibo_post_model.dart';
 import 'package:material_weibo/data/models/comment_model.dart';
 import 'package:material_weibo/domain/entities/comment.dart';
 import 'package:material_weibo/presentation/blocs/history/history_cubit.dart';
+import 'package:material_weibo/presentation/widgets/rich_content_text.dart';
 import 'package:material_weibo/presentation/widgets/weibo_card.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
@@ -190,10 +190,28 @@ class _CommentItem extends StatelessWidget {
                   ).textTheme.labelLarge?.copyWith(color: colorScheme.primary),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  WeiboHtmlParser.stripTags(comment.text),
+                RichContentText(
+                  htmlText: comment.text,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
+                // 显示评论配图（图片回复）
+                if (comment.picUrl != null && comment.picUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: 200,
+                        maxHeight: 200,
+                      ),
+                      child: Image.network(
+                        comment.picUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Row(
                   children: [
@@ -229,22 +247,46 @@ class _CommentItem extends StatelessWidget {
                       ),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text.rich(
                           TextSpan(
-                            text: '@${comment.replyComment!.user.screenName}: ',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: colorScheme.primary),
+                            children: [
+                              TextSpan(
+                                text:
+                                    '@${comment.replyComment!.user.screenName}: ',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: colorScheme.primary),
+                              ),
+                            ],
                           ),
-                          TextSpan(
-                            text: WeiboHtmlParser.stripTags(
-                              comment.replyComment!.text,
+                        ),
+                        RichContentText(
+                          htmlText: comment.replyComment!.text,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        // 回复评论的配图
+                        if (comment.replyComment!.picUrl != null &&
+                            comment.replyComment!.picUrl!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                maxWidth: 150,
+                                maxHeight: 150,
+                              ),
+                              child: Image.network(
+                                comment.replyComment!.picUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    const SizedBox.shrink(),
+                              ),
                             ),
-                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
                 ],

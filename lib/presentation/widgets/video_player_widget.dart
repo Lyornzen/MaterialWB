@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-/// 微博视频播放器组件
+/// 微博视频播放器组件（基于 media_kit / FFmpeg）
 class VideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
   final String? thumbnailUrl;
@@ -18,80 +19,77 @@ class VideoPlayerWidget extends StatefulWidget {
 }
 
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
-  VideoPlayerController? _controller;
+  Player? _player;
+  VideoController? _videoController;
   bool _isInitialized = false;
   bool _isPlaying = false;
   bool _hasError = false;
   bool _showControls = true;
 
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+
   @override
   void dispose() {
-    _controller?.dispose();
+    _player?.dispose();
     super.dispose();
   }
 
   Future<void> _initializePlayer() async {
-    final controller = VideoPlayerController.networkUrl(
-      Uri.parse(widget.videoUrl),
-    );
-    _controller = controller;
+    final player = Player();
+    _player = player;
+    _videoController = VideoController(player);
+
+    // 监听播放状态
+    player.stream.playing.listen((playing) {
+      if (!mounted) return;
+      setState(() => _isPlaying = playing);
+    });
+
+    player.stream.position.listen((position) {
+      if (!mounted) return;
+      setState(() => _position = position);
+    });
+
+    player.stream.duration.listen((duration) {
+      if (!mounted) return;
+      setState(() => _duration = duration);
+    });
+
+    player.stream.error.listen((error) {
+      if (!mounted) return;
+      if (error.toString().isNotEmpty) {
+        setState(() => _hasError = true);
+      }
+    });
 
     try {
-      await controller.initialize();
+      await player.open(Media(widget.videoUrl));
       if (!mounted) return;
-      setState(() {
-        _isInitialized = true;
-      });
-      controller.addListener(_onPlayerStateChanged);
-      await controller.play();
+      setState(() => _isInitialized = true);
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _hasError = true;
-      });
-    }
-  }
-
-  void _onPlayerStateChanged() {
-    if (!mounted) return;
-    final playing = _controller?.value.isPlaying ?? false;
-    if (playing != _isPlaying) {
-      setState(() {
-        _isPlaying = playing;
-      });
+      setState(() => _hasError = true);
     }
   }
 
   void _togglePlayPause() {
-    final controller = _controller;
-    if (controller == null || !_isInitialized) return;
+    final player = _player;
+    if (player == null || !_isInitialized) return;
 
-    setState(() {
-      _showControls = true;
-    });
-
-    if (controller.value.isPlaying) {
-      controller.pause();
-    } else {
-      // If video has ended, seek to beginning
-      if (controller.value.position >= controller.value.duration) {
-        controller.seekTo(Duration.zero);
-      }
-      controller.play();
-    }
+    setState(() => _showControls = true);
+    player.playOrPause();
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: AspectRatio(
-        aspectRatio: _isInitialized ? _controller!.value.aspectRatio : 16 / 9,
-        child: _isInitialized
-            ? _buildPlayer(colorScheme)
-            : _buildThumbnail(colorScheme),
+        aspectRatio: 16 / 9,
+        child: _isInitialized && _videoController != null
+            ? _buildPlayer(Theme.of(context).colorScheme)
+            : _buildThumbnail(Theme.of(context).colorScheme),
       ),
     );
   }
@@ -109,9 +107,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
-              placeholder: (_, _a) =>
+              placeholder: (_, __) =>
                   Container(color: colorScheme.surfaceContainerHighest),
-              errorWidget: (_, _a, _b) => Container(
+              errorWidget: (_, __, ___) => Container(
                 color: colorScheme.surfaceContainerHighest,
                 child: Icon(
                   Icons.videocam,
@@ -162,18 +160,14 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   }
 
   Widget _buildPlayer(ColorScheme colorScheme) {
-    final controller = _controller!;
-
     return GestureDetector(
       onTap: () {
-        setState(() {
-          _showControls = !_showControls;
-        });
+        setState(() => _showControls = !_showControls);
       },
       child: Stack(
         alignment: Alignment.center,
         children: [
-          VideoPlayer(controller),
+          Video(controller: _videoController!, controls: NoVideoControls),
 
           // 播放/暂停覆盖
           if (_showControls || !_isPlaying)
@@ -210,40 +204,56 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Row(
                   children: [
-                    ValueListenableBuilder<VideoPlayerValue>(
-                      valueListenable: controller,
-                      builder: (_, value, _a) {
-                        return Text(
-                          '${_formatDuration(value.position)} / ${_formatDuration(value.duration)}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                        );
-                      },
+                    Text(
+                      '${_formatDuration(_position)} / ${_formatDuration(_duration)}',
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: VideoProgressIndicator(
-                        controller,
-                        allowScrubbing: true,
-                        colors: VideoProgressColors(
-                          playedColor: colorScheme.primary,
-                          bufferedColor: Colors.white38,
-                          backgroundColor: Colors.white12,
+                      child: SliderTheme(
+                        data: SliderThemeData(
+                          trackHeight: 2,
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 6,
+                          ),
+                          overlayShape: const RoundSliderOverlayShape(
+                            overlayRadius: 12,
+                          ),
+                          activeTrackColor: colorScheme.primary,
+                          inactiveTrackColor: Colors.white24,
+                          thumbColor: colorScheme.primary,
+                        ),
+                        child: Slider(
+                          value: _duration.inMilliseconds > 0
+                              ? (_position.inMilliseconds /
+                                        _duration.inMilliseconds)
+                                    .clamp(0.0, 1.0)
+                              : 0.0,
+                          onChanged: (value) {
+                            final newPosition = Duration(
+                              milliseconds: (value * _duration.inMilliseconds)
+                                  .round(),
+                            );
+                            _player?.seek(newPosition);
+                          },
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () {
-                        controller.setVolume(
-                          controller.value.volume > 0 ? 0 : 1,
-                        );
+                        final player = _player;
+                        if (player == null) return;
+                        // Toggle volume
+                        if (player.state.volume > 0) {
+                          player.setVolume(0);
+                        } else {
+                          player.setVolume(100);
+                        }
                         setState(() {});
                       },
                       child: Icon(
-                        controller.value.volume > 0
+                        (_player?.state.volume ?? 0) > 0
                             ? Icons.volume_up
                             : Icons.volume_off,
                         color: Colors.white,

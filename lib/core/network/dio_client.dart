@@ -133,6 +133,23 @@ class DioClient {
     }
   }
 
+  /// PC 网页端 API POST 请求 (weibo.com)
+  Future<Response> pcWebPost(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    try {
+      return await _pcWebDio.post(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
   /// 原始 GET 请求（无 base URL，支持任意完整 URL）
   Future<Response> rawGet(
     String url, {
