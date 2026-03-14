@@ -1,7 +1,9 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
+import 'package:material_weibo/data/models/user_model.dart';
 import 'package:material_weibo/data/models/weibo_post_model.dart';
+import 'package:material_weibo/domain/entities/user.dart';
 import 'package:material_weibo/domain/entities/weibo_post.dart';
 
 // Events
@@ -14,6 +16,13 @@ abstract class SearchEvent extends Equatable {
 class SearchQuerySubmitted extends SearchEvent {
   final String query;
   const SearchQuerySubmitted({required this.query});
+  @override
+  List<Object?> get props => [query];
+}
+
+class SearchUserQuerySubmitted extends SearchEvent {
+  final String query;
+  const SearchUserQuerySubmitted({required this.query});
   @override
   List<Object?> get props => [query];
 }
@@ -52,6 +61,14 @@ class SearchResultLoaded extends SearchState {
   List<Object?> get props => [posts, query];
 }
 
+class SearchUserResultLoaded extends SearchState {
+  final List<WeiboUser> users;
+  final String query;
+  const SearchUserResultLoaded({required this.users, required this.query});
+  @override
+  List<Object?> get props => [users, query];
+}
+
 class SearchError extends SearchState {
   final String message;
   const SearchError({required this.message});
@@ -66,6 +83,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   SearchBloc({required this.webApi}) : super(const SearchInitial()) {
     on<SearchHotLoaded>(_onHotLoaded);
     on<SearchQuerySubmitted>(_onQuerySubmitted);
+    on<SearchUserQuerySubmitted>(_onUserQuerySubmitted);
   }
 
   Future<void> _onHotLoaded(
@@ -104,13 +122,15 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       final data = await webApi.search(event.query);
       final List<WeiboPost> posts = [];
 
-      // 格式1: PC web searchList — {"ok":1, "statuses":[...]} 或 {"data":{...}}
+      // 格式1: PC web searchList — {"ok":1, "statuses":[...]}
       final statuses = data['statuses'] as List?;
       if (statuses != null) {
         for (final s in statuses) {
           if (s is Map<String, dynamic>) {
             try {
-              posts.add(WeiboPostModel.fromJson(s));
+              if (!WeiboPostModel.isAdPost(s)) {
+                posts.add(WeiboPostModel.fromJson(s));
+              }
             } catch (_) {}
           }
         }
@@ -125,7 +145,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
             for (final s in innerStatuses) {
               if (s is Map<String, dynamic>) {
                 try {
-                  posts.add(WeiboPostModel.fromJson(s));
+                  if (!WeiboPostModel.isAdPost(s)) {
+                    posts.add(WeiboPostModel.fromJson(s));
+                  }
                 } catch (_) {}
               }
             }
@@ -133,22 +155,72 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         }
       }
 
-      // 格式3: m.weibo.cn cards 格式 (向后兼容)
+      // 格式3: m.weibo.cn cards 格式 (回退)
       if (posts.isEmpty) {
         final cards = (data['data']?['cards'] as List?) ?? [];
         for (final card in cards) {
-          if (card is Map<String, dynamic> && card['card_type'] == 9) {
-            final mblog = card['mblog'];
-            if (mblog is Map<String, dynamic>) {
-              try {
+          if (card is! Map<String, dynamic>) continue;
+          final cardType = card['card_type'];
+
+          // 直接包含 mblog 的卡片
+          if (cardType == 9 && card['mblog'] != null) {
+            try {
+              final mblog = card['mblog'] as Map<String, dynamic>;
+              if (!WeiboPostModel.isAdPost(mblog)) {
                 posts.add(WeiboPostModel.fromJson(mblog));
-              } catch (_) {}
+              }
+            } catch (_) {}
+          }
+
+          // card_group 内嵌的卡片（搜索结果常用此结构）
+          final cardGroup = card['card_group'] as List?;
+          if (cardGroup != null) {
+            for (final groupItem in cardGroup) {
+              if (groupItem is Map<String, dynamic> &&
+                  groupItem['card_type'] == 9 &&
+                  groupItem['mblog'] != null) {
+                try {
+                  final mblog = groupItem['mblog'] as Map<String, dynamic>;
+                  if (!WeiboPostModel.isAdPost(mblog)) {
+                    posts.add(WeiboPostModel.fromJson(mblog));
+                  }
+                } catch (_) {}
+              }
             }
           }
         }
       }
 
       emit(SearchResultLoaded(posts: posts, query: event.query));
+    } catch (e) {
+      emit(SearchError(message: e.toString()));
+    }
+  }
+
+  Future<void> _onUserQuerySubmitted(
+    SearchUserQuerySubmitted event,
+    Emitter<SearchState> emit,
+  ) async {
+    emit(const SearchLoading());
+    try {
+      final data = await webApi.searchUsers(event.query);
+      final List<WeiboUser> users = [];
+
+      // PC web 格式: { "ok": 1, "data": { "users": [...] } }
+      final userList =
+          (data['data']?['users'] as List?) ??
+          (data['users'] as List?) ??
+          (data['data'] as List?) ??
+          [];
+      for (final item in userList) {
+        if (item is Map<String, dynamic>) {
+          try {
+            users.add(UserModel.fromJson(item));
+          } catch (_) {}
+        }
+      }
+
+      emit(SearchUserResultLoaded(users: users, query: event.query));
     } catch (e) {
       emit(SearchError(message: e.toString()));
     }

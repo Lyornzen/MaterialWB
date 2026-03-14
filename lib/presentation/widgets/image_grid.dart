@@ -8,7 +8,15 @@ class ImageGrid extends StatelessWidget {
   final List<String> imageUrls;
   final int maxCount;
 
-  const ImageGrid({super.key, required this.imageUrls, this.maxCount = 9});
+  /// 当图片被查看时的回调（用于记录浏览历史）
+  final VoidCallback? onImageViewed;
+
+  const ImageGrid({
+    super.key,
+    required this.imageUrls,
+    this.maxCount = 9,
+    this.onImageViewed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -44,10 +52,14 @@ class ImageGrid extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 240),
+          constraints: const BoxConstraints(
+            maxHeight: 500,
+            maxWidth: double.infinity,
+          ),
           child: CachedNetworkImage(
             imageUrl: url,
-            fit: BoxFit.cover,
+            fit: BoxFit.fitWidth,
+            width: double.infinity,
             placeholder: (_, _) => Container(
               height: 200,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -85,6 +97,7 @@ class ImageGrid extends StatelessWidget {
   }
 
   void _openGallery(BuildContext context, int initialIndex) {
+    onImageViewed?.call();
     Navigator.push(
       context,
       MaterialPageRoute(

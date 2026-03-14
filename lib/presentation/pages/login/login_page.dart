@@ -37,6 +37,8 @@ class _LoginPageState extends State<LoginPage> {
             if (request.url.startsWith(ApiConstants.redirectUri)) {
               final code = uri.queryParameters['code'];
               if (code != null && mounted) {
+                // 尝试提取 cookie 并保存
+                _extractAndSaveCookie();
                 context.read<AuthBloc>().add(AuthLoginRequested(code: code));
                 setState(() => _webViewMode = _WebViewMode.none);
               }
@@ -123,6 +125,30 @@ class _LoginPageState extends State<LoginPage> {
           context,
         ).showSnackBar(const SnackBar(content: Text('未检测到登录状态，请先完成登录')));
       }
+    }
+  }
+
+  /// OAuth 重定向后提取 cookie 并保存（补充 OAuth 登录的 cookie 同步）
+  Future<void> _extractAndSaveCookie() async {
+    try {
+      // 优先尝试原生方式获取 cookie
+      final cookie =
+          await _getNativeCookie('https://weibo.com') ??
+          await _getNativeCookie('https://m.weibo.cn');
+      if (cookie != null && cookie.isNotEmpty && mounted) {
+        context.read<AuthBloc>().add(AuthCookieSaved(cookie: cookie));
+        return;
+      }
+      // 回退到 JS 方式
+      final jsCookie = await _oauthController.runJavaScriptReturningResult(
+        'document.cookie',
+      );
+      final cookieStr = jsCookie.toString().replaceAll('"', '');
+      if (cookieStr.isNotEmpty && mounted) {
+        context.read<AuthBloc>().add(AuthCookieSaved(cookie: cookieStr));
+      }
+    } catch (_) {
+      // cookie 提取失败不影响 OAuth 登录流程
     }
   }
 

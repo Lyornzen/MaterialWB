@@ -72,13 +72,16 @@ Future<void> initDependencies() async {
     UserRepositoryImpl(
       officialApi: sl<WeiboOfficialApi>(),
       webApi: sl<WeiboWebApi>(),
+      authRepository: sl<AuthRepository>(),
     ),
   );
   sl.registerSingleton<FavoriteRepository>(
     FavoriteRepositoryImpl(
       officialApi: sl<WeiboOfficialApi>(),
+      webApi: sl<WeiboWebApi>(),
       localDb: sl<WeiboLocalDb>(),
       networkInfo: sl<NetworkInfo>(),
+      authRepository: sl<AuthRepository>(),
     ),
   );
   sl.registerSingleton<HistoryRepository>(

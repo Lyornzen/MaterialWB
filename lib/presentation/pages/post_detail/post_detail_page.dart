@@ -6,7 +6,9 @@ import 'package:material_weibo/data/models/weibo_post_model.dart';
 import 'package:material_weibo/data/models/comment_model.dart';
 import 'package:material_weibo/domain/entities/comment.dart';
 import 'package:material_weibo/presentation/blocs/history/history_cubit.dart';
+import 'package:material_weibo/presentation/widgets/rich_content_text.dart';
 import 'package:material_weibo/presentation/widgets/weibo_card.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
 class PostDetailPage extends StatefulWidget {
   final String postId;
@@ -144,9 +146,18 @@ class _CommentItem extends StatelessWidget {
 
   const _CommentItem({required this.comment});
 
+  String _formatCount(int count) {
+    if (count <= 0) return '0';
+    if (count >= 10000) {
+      return '${(count / 10000).toStringAsFixed(1)}万';
+    }
+    return count.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    timeago.setLocaleMessages('zh', timeago.ZhMessages());
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -179,18 +190,106 @@ class _CommentItem extends StatelessWidget {
                   ).textTheme.labelLarge?.copyWith(color: colorScheme.primary),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  comment.text,
+                RichContentText(
+                  htmlText: comment.text,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
-                const SizedBox(height: 4),
-                if (comment.likeCount > 0)
-                  Text(
-                    '${comment.likeCount} 赞',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: colorScheme.outline),
+                // 显示评论配图（图片回复）
+                if (comment.picUrl != null && comment.picUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: 200,
+                        maxHeight: 200,
+                      ),
+                      child: Image.network(
+                        comment.picUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
                   ),
+                ],
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      timeago.format(comment.createdAt, locale: 'zh'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.outline,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(
+                      Icons.thumb_up_outlined,
+                      size: 14,
+                      color: colorScheme.outline,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatCount(comment.likeCount),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.outline,
+                      ),
+                    ),
+                  ],
+                ),
+                // 显示回复评论
+                if (comment.replyComment != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.3,
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text:
+                                    '@${comment.replyComment!.user.screenName}: ',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: colorScheme.primary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        RichContentText(
+                          htmlText: comment.replyComment!.text,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        // 回复评论的配图
+                        if (comment.replyComment!.picUrl != null &&
+                            comment.replyComment!.picUrl!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                maxWidth: 150,
+                                maxHeight: 150,
+                              ),
+                              child: Image.network(
+                                comment.replyComment!.picUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    const SizedBox.shrink(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

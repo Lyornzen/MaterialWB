@@ -30,11 +30,12 @@ plugins {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
-        // Flutter engine 国内镜像（必须在最前面）
-        maven { url = uri("https://storage.flutter-io.cn/download.flutter.io") }
-        // 阿里云镜像
+        // 阿里云镜像（优先，处理 AndroidX / Google 制品）
         maven { url = uri("https://maven.aliyun.com/repository/google") }
         maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
+        // Flutter engine 国内镜像
+        maven { url = uri("https://storage.flutter-io.cn/download.flutter.io") }
         google()
         mavenCentral()
     }

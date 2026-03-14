@@ -15,6 +15,7 @@ class UserModel extends WeiboUser {
     super.coverImageUrl,
     super.gender,
     super.location,
+    super.following,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -35,6 +36,7 @@ class UserModel extends WeiboUser {
       coverImageUrl: json['cover_image_phone'] as String?,
       gender: json['gender'] as String?,
       location: json['location'] as String?,
+      following: json['following'] as bool?,
     );
   }
 
@@ -52,6 +54,7 @@ class UserModel extends WeiboUser {
       'cover_image_phone': coverImageUrl,
       'gender': gender,
       'location': location,
+      'following': following,
     };
   }
 }

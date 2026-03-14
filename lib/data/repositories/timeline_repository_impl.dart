@@ -35,6 +35,7 @@ class TimelineRepositoryImpl implements TimelineRepository {
     );
     final statuses = (data['statuses'] as List?) ?? [];
     final posts = statuses
+        .where((json) => !WeiboPostModel.isAdPost(json as Map<String, dynamic>))
         .map((json) => WeiboPostModel.fromJson(json as Map<String, dynamic>))
         .toList();
     // 缓存第一页
@@ -85,6 +86,10 @@ class TimelineRepositoryImpl implements TimelineRepository {
       final cards = (data['data']?['cards'] as List?) ?? [];
       return cards
           .where((card) => card['card_type'] == 9)
+          .where((card) {
+            final mblog = card['mblog'] as Map<String, dynamic>?;
+            return mblog != null && !WeiboPostModel.isAdPost(mblog);
+          })
           .map(
             (card) =>
                 WeiboPostModel.fromJson(card['mblog'] as Map<String, dynamic>),

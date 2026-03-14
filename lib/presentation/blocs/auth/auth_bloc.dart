@@ -1,4 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:material_weibo/core/di/injection.dart';
+import 'package:material_weibo/core/network/dio_client.dart';
 import 'package:material_weibo/domain/repositories/auth_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -15,6 +17,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthLogoutRequested>(_onLogoutRequested);
   }
 
+  /// 将 token 和 cookie 同步到 DioClient 拦截器
+  Future<void> _syncCredentials(String token) async {
+    final dioClient = sl<DioClient>();
+    dioClient.updateToken(token);
+    // 同步 cookie（如果存在）
+    final cookie = await authRepository.getSavedCookie();
+    if (cookie != null && cookie.isNotEmpty) {
+      dioClient.updateCookie(cookie);
+    }
+  }
+
   Future<void> _onCheckStatus(
     AuthCheckStatus event,
     Emitter<AuthState> emit,
@@ -25,7 +38,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (isLoggedIn) {
         final method = authRepository.getLoginMethod() ?? 'oauth';
         if (method == 'cookie') {
-          // Cookie 登录，尝试获取用户信息
+          // Cookie 登录，同步 cookie 到拦截器并获取用户信息
+          final cookie = await authRepository.getSavedCookie();
+          if (cookie != null && cookie.isNotEmpty) {
+            sl<DioClient>().updateCookie(cookie);
+          }
           try {
             final cookie = await authRepository.getSavedCookie();
             if (cookie != null) {
@@ -49,6 +66,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           // OAuth 登录
           final token = await authRepository.getSavedToken();
           if (token != null) {
+            await _syncCredentials(token);
             try {
               final user = await authRepository.getCurrentUser(token);
               emit(AuthAuthenticated(token: token, user: user));
@@ -74,6 +92,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthLoading());
     try {
       final token = await authRepository.getAccessToken(event.code);
+      // 同步 token 到拦截器
+      await _syncCredentials(token);
       try {
         final user = await authRepository.getCurrentUser(token);
         emit(AuthAuthenticated(token: token, user: user));
@@ -120,6 +140,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     await authRepository.saveCookie(event.cookie);
+    // 同步 cookie 到拦截器
+    sl<DioClient>().updateCookie(event.cookie);
   }
 
   Future<void> _onGuestRequested(
@@ -134,6 +156,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     await authRepository.logout();
+    // 清除拦截器中的认证信息
+    final dioClient = sl<DioClient>();
+    dioClient.updateToken(null);
+    dioClient.updateCookie(null);
     emit(const AuthUnauthenticated());
   }
 }

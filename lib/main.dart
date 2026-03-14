@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'core/di/injection.dart';
 import 'app.dart';
@@ -25,6 +26,9 @@ void main() async {
 
   // Enable edge-to-edge
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+  // Initialize media_kit for video playback
+  MediaKit.ensureInitialized();
 
   // Register Chinese locale for timeago
   timeago.setLocaleMessages('zh_CN', timeago.ZhCnMessages());
