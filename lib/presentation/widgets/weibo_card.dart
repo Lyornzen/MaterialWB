@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:material_weibo/core/i18n/app_i18n.dart';
 import 'package:material_weibo/domain/entities/weibo_post.dart';
 import 'package:material_weibo/presentation/blocs/favorite/favorite_cubit.dart';
 import 'package:material_weibo/presentation/blocs/history/history_cubit.dart';
@@ -104,7 +105,7 @@ class WeiboCard extends StatelessWidget {
                           ],
                         ),
                         Text(
-                          _formatTime(post.createdAt),
+                          _formatTime(context, post.createdAt),
                           style: textTheme.bodySmall?.copyWith(
                             color: colorScheme.onSurfaceVariant,
                           ),
@@ -307,9 +308,14 @@ class WeiboCard extends StatelessWidget {
     );
   }
 
-  String _formatTime(DateTime dateTime) {
-    timeago.setLocaleMessages('zh', timeago.ZhMessages());
-    return timeago.format(dateTime, locale: 'zh');
+  String _formatTime(BuildContext context, DateTime dateTime) {
+    final locale = context.i18n.isZh ? 'zh' : 'en';
+    if (locale == 'zh') {
+      timeago.setLocaleMessages('zh', timeago.ZhMessages());
+    } else {
+      timeago.setLocaleMessages('en', timeago.EnMessages());
+    }
+    return timeago.format(dateTime, locale: locale);
   }
 
   /// 简单的 HTML 标签剥离

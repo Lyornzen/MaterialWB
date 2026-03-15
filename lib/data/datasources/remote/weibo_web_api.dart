@@ -184,7 +184,14 @@ class WeiboWebApi {
     try {
       final response = await dioClient.pcWebGet(
         ApiConstants.pcSearchList,
-        queryParameters: {'q': keyword, 'page': page, 'count': '20'},
+        queryParameters: {
+          'q': keyword,
+          'keyword': keyword,
+          'page': page,
+          'count': '20',
+          'typeall': '1',
+          'suball': '1',
+        },
       );
       final data = response.data;
       if (data is String) return jsonDecode(data) as Map<String, dynamic>;
@@ -198,6 +205,7 @@ class WeiboWebApi {
         queryParameters: {
           'containerid': '100103type=1&q=$keyword&t=0',
           'page_type': 'searchall',
+          'type': 'all',
           'page': page,
         },
       );
@@ -235,16 +243,33 @@ class WeiboWebApi {
 
   /// 获取当前 Cookie 登录用户信息
   Future<Map<String, dynamic>> getLoggedInUserInfo() async {
-    // 通过 m.weibo.cn/api/config 获取用户信息
-    final configResponse = await dioClient.webGet('/config');
-    final data = configResponse.data is String
-        ? jsonDecode(configResponse.data as String) as Map<String, dynamic>
-        : configResponse.data as Map<String, dynamic>;
-    final userInfo = data['data']?['login'] == true
-        ? (data['data']?['user'] as Map<String, dynamic>?)
-        : null;
-    if (userInfo == null) throw Exception('未获取到用户信息，Cookie 可能已过期');
-    return userInfo;
+    // 优先通过 m.weibo.cn/api/config 获取用户信息
+    try {
+      final configResponse = await dioClient.webGet('/config');
+      final data = configResponse.data is String
+          ? jsonDecode(configResponse.data as String) as Map<String, dynamic>
+          : configResponse.data as Map<String, dynamic>;
+      final userInfo = data['data']?['login'] == true
+          ? (data['data']?['user'] as Map<String, dynamic>?)
+          : null;
+      if (userInfo != null) return userInfo;
+    } catch (_) {}
+
+    // 回退到 PC web 侧栏接口
+    try {
+      final response = await dioClient.pcWebGet('/ajax/side/myInfo');
+      final data = response.data is String
+          ? jsonDecode(response.data as String) as Map<String, dynamic>
+          : response.data as Map<String, dynamic>;
+      final userInfo =
+          data['data']?['user'] as Map<String, dynamic>? ??
+          data['data']?['userInfo'] as Map<String, dynamic>? ??
+          data['user'] as Map<String, dynamic>? ??
+          data['data'] as Map<String, dynamic>?;
+      if (userInfo != null) return userInfo;
+    } catch (_) {}
+
+    throw Exception('未获取到用户信息，Cookie 可能已过期');
   }
 
   // ─── 收藏 (PC web) ────────────────────────────────────

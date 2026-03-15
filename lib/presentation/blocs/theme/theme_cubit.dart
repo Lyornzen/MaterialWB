@@ -13,10 +13,14 @@ class ThemeSettings extends Equatable {
   /// 字体缩放比例（0.8 ~ 1.4）
   final double fontScale;
 
+  /// 语言设置: system / zh / en
+  final String language;
+
   const ThemeSettings({
     this.themeMode = ThemeMode.system,
     this.seedColor,
     this.fontScale = 1.0,
+    this.language = 'system',
   });
 
   ThemeSettings copyWith({
@@ -24,16 +28,18 @@ class ThemeSettings extends Equatable {
     Color? seedColor,
     bool clearSeedColor = false,
     double? fontScale,
+    String? language,
   }) {
     return ThemeSettings(
       themeMode: themeMode ?? this.themeMode,
       seedColor: clearSeedColor ? null : (seedColor ?? this.seedColor),
       fontScale: fontScale ?? this.fontScale,
+      language: language ?? this.language,
     );
   }
 
   @override
-  List<Object?> get props => [themeMode, seedColor, fontScale];
+  List<Object?> get props => [themeMode, seedColor, fontScale, language];
 }
 
 class ThemeCubit extends Cubit<ThemeSettings> {
@@ -55,12 +61,14 @@ class ThemeCubit extends Cubit<ThemeSettings> {
     final seedColor = colorValue != null ? Color(colorValue) : null;
 
     final fontScale = prefsHelper.getFontScale();
+    final language = prefsHelper.getLanguage();
 
     emit(
       ThemeSettings(
         themeMode: themeMode,
         seedColor: seedColor,
         fontScale: fontScale,
+        language: language,
       ),
     );
   }
@@ -87,5 +95,10 @@ class ThemeCubit extends Cubit<ThemeSettings> {
   Future<void> setFontScale(double scale) async {
     await prefsHelper.setFontScale(scale);
     emit(state.copyWith(fontScale: scale));
+  }
+
+  Future<void> setLanguage(String language) async {
+    await prefsHelper.setLanguage(language);
+    emit(state.copyWith(language: language));
   }
 }

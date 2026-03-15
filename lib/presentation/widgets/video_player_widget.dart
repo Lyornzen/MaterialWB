@@ -64,12 +64,29 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     });
 
     try {
-      await player.open(Media(widget.videoUrl));
+      await player.open(
+        Media(
+          widget.videoUrl,
+          httpHeaders: {
+            'Referer': 'https://weibo.com/',
+            'User-Agent':
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 '
+                    '(KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+          },
+        ),
+      );
       if (!mounted) return;
       setState(() => _isInitialized = true);
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _hasError = true);
+      // 某些源不接受自定义请求头，回退为无 header 直连
+      try {
+        await player.open(Media(widget.videoUrl));
+        if (!mounted) return;
+        setState(() => _isInitialized = true);
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _hasError = true);
+      }
     }
   }
 

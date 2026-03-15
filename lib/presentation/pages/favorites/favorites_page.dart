@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:material_weibo/core/i18n/app_i18n.dart';
 import 'package:material_weibo/presentation/blocs/favorite/favorite_cubit.dart';
 import 'package:material_weibo/presentation/widgets/weibo_card.dart';
 import 'package:material_weibo/presentation/widgets/loading_indicator.dart';
@@ -21,8 +22,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final i18n = context.i18n;
     return Scaffold(
-      appBar: AppBar(title: const Text('我的收藏')),
+      appBar: AppBar(title: Text(i18n.tr('我的收藏', 'My Favorites'))),
       body: BlocBuilder<FavoriteCubit, FavoriteState>(
         builder: (context, state) {
           if (state is FavoriteLoading) return const LoadingIndicator();
@@ -67,7 +69,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       color: Theme.of(context).colorScheme.outline,
                     ),
                     const SizedBox(height: 16),
-                    Text('暂无收藏', style: Theme.of(context).textTheme.bodyLarge),
+                    Text(
+                      i18n.tr('暂无收藏', 'No favorites yet'),
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
                   ],
                 ),
               );

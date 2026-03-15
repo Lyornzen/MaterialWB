@@ -87,12 +87,12 @@ class FavoriteCubit extends Cubit<FavoriteState> {
     emit(const FavoriteLoading());
     try {
       final token = await authRepository.getSavedToken();
-      if (token == null) {
+      if (token == null && method == 'oauth') {
         emit(const FavoriteError(message: '请先登录'));
         return;
       }
       final favorites = await favoriteRepository.getFavorites(
-        token: token,
+        token: token ?? 'cookie_session',
         page: page,
       );
       emit(FavoriteLoaded(favorites: favorites));
@@ -111,11 +111,17 @@ class FavoriteCubit extends Cubit<FavoriteState> {
 
     try {
       final token = await authRepository.getSavedToken();
-      if (token == null) return;
+      if (token == null && method == 'oauth') return;
       if (currentlyFavorited) {
-        await favoriteRepository.removeFavorite(token: token, postId: postId);
+        await favoriteRepository.removeFavorite(
+          token: token ?? 'cookie_session',
+          postId: postId,
+        );
       } else {
-        await favoriteRepository.addFavorite(token: token, postId: postId);
+        await favoriteRepository.addFavorite(
+          token: token ?? 'cookie_session',
+          postId: postId,
+        );
       }
       await loadFavorites();
     } catch (e) {

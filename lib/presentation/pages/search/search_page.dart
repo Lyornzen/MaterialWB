@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_weibo/core/i18n/app_i18n.dart';
 import 'package:material_weibo/presentation/blocs/search/search_bloc.dart';
 import 'package:material_weibo/presentation/widgets/weibo_card.dart';
 import 'package:material_weibo/presentation/widgets/loading_indicator.dart';
@@ -79,15 +80,16 @@ class _SearchPageState extends State<SearchPage>
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final i18n = context.i18n;
 
     return Scaffold(
       appBar: AppBar(
         title: TextField(
           controller: _searchController,
-          decoration: const InputDecoration(
-            hintText: '搜索微博',
+          decoration: InputDecoration(
+            hintText: i18n.tr('搜索微博', 'Search Weibo'),
             border: InputBorder.none,
-            prefixIcon: Icon(Icons.search),
+            prefixIcon: const Icon(Icons.search),
             isDense: true,
           ),
           onSubmitted: _onSearch,
@@ -95,9 +97,9 @@ class _SearchPageState extends State<SearchPage>
         bottom: _lastQuery.isNotEmpty
             ? TabBar(
                 controller: _tabController,
-                tabs: const [
-                  Tab(text: '微博'),
-                  Tab(text: '用户'),
+                tabs: [
+                  Tab(text: i18n.tr('微博', 'Posts')),
+                  Tab(text: i18n.tr('用户', 'Users')),
                 ],
               )
             : null,
@@ -117,7 +119,7 @@ class _SearchPageState extends State<SearchPage>
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
-                      '热搜榜',
+                      i18n.tr('热搜榜', 'Trending'),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   );
@@ -171,7 +173,9 @@ class _SearchPageState extends State<SearchPage>
                       item['hot'] != null &&
                           item['hot'] != '' &&
                           item['hot'] != '0'
-                      ? Text('${_formatHotCount(item['hot'].toString())} 热度')
+                      ? Text(
+                          '${_formatHotCount(item['hot'].toString())} ${i18n.tr('热度', 'Hot')}',
+                        )
                       : null,
                   onTap: () {
                     _searchController.text = item['title'] ?? '';
@@ -183,7 +187,7 @@ class _SearchPageState extends State<SearchPage>
           }
           if (state is SearchResultLoaded) {
             if (state.posts.isEmpty) {
-              return const Center(child: Text('未找到相关内容'));
+              return Center(child: Text(i18n.tr('未找到相关内容', 'No matching content')));
             }
             return ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -195,7 +199,7 @@ class _SearchPageState extends State<SearchPage>
           }
           if (state is SearchUserResultLoaded) {
             if (state.users.isEmpty) {
-              return const Center(child: Text('未找到相关用户'));
+              return Center(child: Text(i18n.tr('未找到相关用户', 'No matching users')));
             }
             return ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -209,7 +213,7 @@ class _SearchPageState extends State<SearchPage>
               },
             );
           }
-          return const Center(child: Text('搜索你感兴趣的内容'));
+          return Center(child: Text(i18n.tr('搜索你感兴趣的内容', 'Search anything you are interested in')));
         },
       ),
     );

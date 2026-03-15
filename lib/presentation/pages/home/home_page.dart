@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_weibo/core/i18n/app_i18n.dart';
 import 'package:material_weibo/domain/entities/user.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_bloc.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_state.dart';
@@ -18,6 +19,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
+  final _timelinePageKey = GlobalKey<TimelinePageState>();
+  DateTime? _lastHomeTapTime;
 
   /// 处理 Android 返回手势：
   /// - 如果不在首页 tab → 切回首页 tab
@@ -53,6 +56,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final i18n = context.i18n;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -63,7 +67,7 @@ class _HomePageState extends State<HomePage> {
           final isLoggedIn = authState.isLoggedIn;
 
           final pages = <Widget>[
-            const TimelinePage(),
+            TimelinePage(key: _timelinePageKey),
             const SearchPage(),
             isLoggedIn
                 ? const FavoritesPage()
@@ -76,28 +80,39 @@ class _HomePageState extends State<HomePage> {
             bottomNavigationBar: NavigationBar(
               selectedIndex: _currentIndex,
               onDestinationSelected: (index) {
+                if (index == 0 && _currentIndex == 0) {
+                  final now = DateTime.now();
+                  final isDoubleTap =
+                      _lastHomeTapTime != null &&
+                      now.difference(_lastHomeTapTime!).inMilliseconds < 350;
+                  _lastHomeTapTime = now;
+                  if (isDoubleTap) {
+                    _timelinePageKey.currentState?.scrollToTopAndRefresh();
+                    return;
+                  }
+                }
                 setState(() => _currentIndex = index);
               },
-              destinations: const [
+              destinations: [
                 NavigationDestination(
                   icon: Icon(Icons.home_outlined),
                   selectedIcon: Icon(Icons.home),
-                  label: '首页',
+                  label: i18n.tr('首页', 'Home'),
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.search),
                   selectedIcon: Icon(Icons.search),
-                  label: '发现',
+                  label: i18n.tr('发现', 'Discover'),
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.star_outline),
                   selectedIcon: Icon(Icons.star),
-                  label: '收藏',
+                  label: i18n.tr('收藏', 'Favorites'),
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.person_outline),
                   selectedIcon: Icon(Icons.person),
-                  label: '我的',
+                  label: i18n.tr('我的', 'Me'),
                 ),
               ],
             ),
