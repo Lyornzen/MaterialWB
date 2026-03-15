@@ -5,6 +5,7 @@ import 'package:material_weibo/core/i18n/app_i18n.dart';
 import 'package:material_weibo/presentation/blocs/timeline/timeline_bloc.dart';
 import 'package:material_weibo/presentation/blocs/timeline/timeline_event.dart';
 import 'package:material_weibo/presentation/blocs/timeline/timeline_state.dart';
+import 'package:material_weibo/presentation/widgets/empty_state.dart';
 import 'package:material_weibo/presentation/widgets/weibo_card.dart';
 import 'package:material_weibo/presentation/widgets/loading_indicator.dart';
 import 'package:material_weibo/presentation/widgets/error_widget.dart';
@@ -129,24 +130,20 @@ class TimelinePageState extends State<TimelinePage> {
           }
           if (state is TimelineLoaded) {
             if (state.posts.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.inbox_outlined,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      state.feedType == TimelineFeedType.following
-                          ? i18n.tr('暂无已关注博主微博', 'No following posts yet')
-                          : i18n.tr('暂无微博', 'No posts yet'),
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
-                ),
+              return AppEmptyState(
+                icon: Icons.inbox_outlined,
+                title: state.feedType == TimelineFeedType.following
+                    ? i18n.tr('暂无已关注博主微博', 'No following posts yet')
+                    : i18n.tr('暂无微博', 'No posts yet'),
+                subtitle: state.feedType == TimelineFeedType.following
+                    ? i18n.tr(
+                        '当前会话里还没有可展示的关注内容',
+                        'No followed posts are available in this session yet',
+                      )
+                    : i18n.tr(
+                        '下拉刷新试试，或稍后再回来看看',
+                        'Try pulling to refresh or come back later',
+                      ),
               );
             }
             return RefreshIndicator(

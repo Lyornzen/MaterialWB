@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_weibo/core/constants/login_method.dart';
 import 'package:material_weibo/core/i18n/app_i18n.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_bloc.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_event.dart';
@@ -211,10 +212,10 @@ class SettingsPage extends StatelessWidget {
 
                   final loginMethod = authState is AuthAuthenticated
                       ? authState.loginMethod
-                      : 'oauth';
-                  final methodLabel = loginMethod == 'cookie'
+                      : LoginMethod.token;
+                  final methodLabel = LoginMethod.usesCookie(loginMethod)
                       ? i18n.tr('Cookie 登录', 'Cookie Login')
-                      : i18n.tr('OAuth 登录', 'OAuth Login');
+                      : i18n.tr('令牌会话', 'Token Session');
 
                   return Column(
                     children: [

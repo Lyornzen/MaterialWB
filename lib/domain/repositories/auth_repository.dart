@@ -2,12 +2,6 @@ import 'package:material_weibo/domain/entities/user.dart';
 
 /// 认证仓库接口
 abstract class AuthRepository {
-  /// 获取 OAuth 授权 URL
-  String getAuthorizeUrl();
-
-  /// 通过授权码换取 Token
-  Future<String> getAccessToken(String code);
-
   /// 获取存储的 Token
   Future<String?> getSavedToken();
 
@@ -26,7 +20,7 @@ abstract class AuthRepository {
   /// 通过 Cookie 获取当前登录用户信息（网页端 API）
   Future<WeiboUser> getCurrentUserByCookie();
 
-  /// 保存登录方式 ('oauth' | 'cookie')
+  /// 保存登录方式 ('token' | 'cookie')
   Future<void> saveLoginMethod(String method);
 
   /// 获取保存的登录方式

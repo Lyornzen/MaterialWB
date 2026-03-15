@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:material_weibo/core/constants/login_method.dart';
 import 'package:material_weibo/core/di/injection.dart';
 import 'package:material_weibo/domain/entities/weibo_post.dart';
 import 'package:material_weibo/domain/repositories/auth_repository.dart';
@@ -17,11 +18,11 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
     on<TimelineCacheLoaded>(_onCacheLoaded);
   }
 
-  /// 判断当前是否有有效的 OAuth Token
+  /// 判断当前是否可以走 token 接口
   Future<String?> _getToken() async {
     final authRepo = sl<AuthRepository>();
     final method = authRepo.getLoginMethod();
-    if (method == 'cookie') return null; // Cookie 登录不使用官方 API
+    if (!LoginMethod.usesToken(method)) return null;
     return authRepo.getSavedToken();
   }
 

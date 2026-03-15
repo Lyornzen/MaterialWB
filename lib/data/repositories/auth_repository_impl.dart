@@ -1,5 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:material_weibo/core/constants/app_constants.dart';
+import 'package:material_weibo/core/constants/login_method.dart';
 import 'package:material_weibo/core/network/dio_client.dart';
 import 'package:material_weibo/data/datasources/local/preferences_helper.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_official_api.dart';
@@ -22,23 +23,6 @@ class AuthRepositoryImpl implements AuthRepository {
     required this.secureStorage,
     required this.prefsHelper,
   });
-
-  @override
-  String getAuthorizeUrl() => officialApi.getAuthorizeUrl();
-
-  @override
-  Future<String> getAccessToken(String code) async {
-    final data = await officialApi.getAccessToken(code);
-    final token = data['access_token'] as String;
-    final uid = data['uid']?.toString() ?? '';
-    await saveToken(token);
-    await saveLoginMethod('oauth');
-    dioClient.updateToken(token);
-    if (uid.isNotEmpty) {
-      await prefsHelper.setUserId(uid);
-    }
-    return token;
-  }
 
   @override
   Future<String?> getSavedToken() =>
@@ -108,16 +92,30 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> saveLoginMethod(String method) async {
-    await prefsHelper.setLoginMethod(method);
+    await prefsHelper.setLoginMethod(LoginMethod.normalize(method));
   }
 
   @override
-  String? getLoginMethod() => prefsHelper.getLoginMethod();
+  String? getLoginMethod() {
+    final stored = prefsHelper.getLoginMethod();
+    if (stored != null && stored.isNotEmpty) {
+      return LoginMethod.normalize(stored);
+    }
+    final cookie = prefsHelper.getCookie();
+    if (cookie != null && cookie.isNotEmpty) {
+      return LoginMethod.cookie;
+    }
+    final token = prefsHelper.getAccessToken();
+    if (token != null && token.isNotEmpty) {
+      return LoginMethod.token;
+    }
+    return null;
+  }
 
   @override
   Future<bool> isLoggedIn() async {
     final method = getLoginMethod();
-    if (method == 'cookie') {
+    if (LoginMethod.usesCookie(method)) {
       final cookie = await getSavedCookie();
       return cookie != null && cookie.isNotEmpty;
     }

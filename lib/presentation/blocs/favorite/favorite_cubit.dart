@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:material_weibo/core/constants/login_method.dart';
 import 'package:material_weibo/core/di/injection.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
 import 'package:material_weibo/domain/entities/favorite.dart';
@@ -58,7 +59,7 @@ class FavoriteError extends FavoriteState {
   List<Object?> get props => [message];
 }
 
-/// 收藏功能不可用（Cookie 登录或游客模式不支持）
+/// 收藏功能不可用（未登录或当前会话不可用）
 class FavoriteUnavailable extends FavoriteState {
   final String message;
   const FavoriteUnavailable({required this.message});
@@ -77,7 +78,7 @@ class FavoriteCubit extends Cubit<FavoriteState> {
   }) : super(const FavoriteInitial());
 
   Future<void> loadFavorites({int page = 1}) async {
-    // 检查登录方式 — 收藏功能在 OAuth 和 Cookie 登录下均可用
+    // 检查登录方式 — 收藏功能在 token 和 cookie 登录下均可用
     final method = authRepository.getLoginMethod();
     if (method == null) {
       emit(const FavoriteUnavailable(message: '请先登录'));
@@ -87,7 +88,7 @@ class FavoriteCubit extends Cubit<FavoriteState> {
     emit(const FavoriteLoading());
     try {
       final token = await authRepository.getSavedToken();
-      if (token == null && method == 'oauth') {
+      if (token == null && LoginMethod.usesToken(method)) {
         emit(const FavoriteError(message: '请先登录'));
         return;
       }
@@ -111,7 +112,7 @@ class FavoriteCubit extends Cubit<FavoriteState> {
 
     try {
       final token = await authRepository.getSavedToken();
-      if (token == null && method == 'oauth') return;
+      if (token == null && LoginMethod.usesToken(method)) return;
       if (currentlyFavorited) {
         await favoriteRepository.removeFavorite(
           token: token ?? 'cookie_session',

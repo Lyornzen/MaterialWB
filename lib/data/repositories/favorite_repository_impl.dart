@@ -1,4 +1,5 @@
 import 'package:material_weibo/core/network/network_info.dart';
+import 'package:material_weibo/core/constants/login_method.dart';
 import 'package:material_weibo/data/datasources/local/weibo_local_db.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_official_api.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
@@ -31,8 +32,8 @@ class FavoriteRepositoryImpl implements FavoriteRepository {
   }) async {
     if (await networkInfo.isConnected) {
       final method = authRepository.getLoginMethod();
-      if (method == 'oauth') {
-        // OAuth 登录 — 使用官方 API
+      if (LoginMethod.usesToken(method)) {
+        // Token 登录 — 使用官方 API
         final data = await officialApi.getFavorites(page: page, count: count);
         final favorites = (data['favorites'] as List?) ?? [];
         final result = favorites
@@ -91,7 +92,7 @@ class FavoriteRepositoryImpl implements FavoriteRepository {
     required String postId,
   }) async {
     final method = authRepository.getLoginMethod();
-    if (method == 'oauth') {
+    if (LoginMethod.usesToken(method)) {
       await officialApi.addFavorite(postId);
     } else {
       await webApi.addFavorite(postId);
@@ -104,7 +105,7 @@ class FavoriteRepositoryImpl implements FavoriteRepository {
     required String postId,
   }) async {
     final method = authRepository.getLoginMethod();
-    if (method == 'oauth') {
+    if (LoginMethod.usesToken(method)) {
       await officialApi.removeFavorite(postId);
     } else {
       await webApi.removeFavorite(postId);

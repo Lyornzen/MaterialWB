@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_weibo/core/constants/login_method.dart';
 import 'package:material_weibo/core/di/injection.dart';
 import 'package:material_weibo/core/i18n/app_i18n.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
@@ -13,6 +14,7 @@ import 'package:material_weibo/presentation/blocs/auth/auth_state.dart';
 import 'package:material_weibo/presentation/pages/timeline/timeline_page.dart';
 import 'package:material_weibo/presentation/pages/search/search_page.dart';
 import 'package:material_weibo/presentation/pages/favorites/favorites_page.dart';
+import 'package:material_weibo/presentation/widgets/empty_state.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -37,16 +39,21 @@ class _HomePageState extends State<HomePage> {
     final shouldExit = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('退出应用'),
-        content: const Text('确定要退出 Material 微博吗？'),
+        title: Text(context.i18n.tr('退出应用', 'Exit App')),
+        content: Text(
+          context.i18n.tr(
+            '确定要退出 Material 微博吗？',
+            'Are you sure you want to exit Material Weibo?',
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
+            child: Text(context.i18n.tr('取消', 'Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('退出'),
+            child: Text(context.i18n.tr('退出', 'Exit')),
           ),
         ],
       ),
@@ -75,7 +82,7 @@ class _HomePageState extends State<HomePage> {
             const SearchPage(),
             isLoggedIn
                 ? const FavoritesPage()
-                : const _LoginRequiredPage(feature: '收藏'),
+                : const _LoginRequiredPage(),
             const _MePage(),
           ];
 
@@ -129,35 +136,23 @@ class _HomePageState extends State<HomePage> {
 
 /// 需要登录才能使用的功能占位页
 class _LoginRequiredPage extends StatelessWidget {
-  final String feature;
-  const _LoginRequiredPage({required this.feature});
+  const _LoginRequiredPage();
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final i18n = context.i18n;
     return Scaffold(
-      appBar: AppBar(title: Text(feature)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.lock_outline, size: 64, color: colorScheme.outline),
-              const SizedBox(height: 16),
-              Text(
-                '登录后即可使用$feature功能',
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: () => context.go('/login'),
-                icon: const Icon(Icons.login),
-                label: const Text('去登录'),
-              ),
-            ],
-          ),
+      appBar: AppBar(title: Text(i18n.tr('需要登录', 'Sign In Required'))),
+      body: AppEmptyState(
+        icon: Icons.lock_outline,
+        title: i18n.tr('登录后即可使用此功能', 'Sign in to use this feature'),
+        subtitle: i18n.tr(
+          '完成登录后即可同步更多个人数据',
+          'Sign in to sync more personal data',
         ),
+        actionLabel: i18n.tr('去登录', 'Sign In'),
+        actionIcon: Icons.login,
+        onAction: () => context.go('/login'),
       ),
     );
   }
@@ -178,7 +173,7 @@ class _MePageState extends State<_MePage> {
     final authRepo = sl<AuthRepository>();
     final method = authRepo.getLoginMethod();
     try {
-      if (method == 'cookie') {
+      if (LoginMethod.usesCookie(method)) {
         final data = await sl<WeiboWebApi>().getLoggedInUserInfo();
         return UserModel.fromJson(data);
       }
@@ -196,7 +191,7 @@ class _MePageState extends State<_MePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('我的'),
+        title: Text(context.i18n.tr('我的', 'Me')),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -208,6 +203,9 @@ class _MePageState extends State<_MePage> {
         builder: (context, state) {
           final isLoggedIn = state.isLoggedIn;
           final authUser = state is AuthAuthenticated ? state.user : null;
+          if (!isLoggedIn || authUser != null) {
+            _fallbackUserFuture = null;
+          }
           if (isLoggedIn && authUser == null && _fallbackUserFuture == null) {
             _fallbackUserFuture = _resolveCurrentUser();
           }
@@ -224,7 +222,13 @@ class _MePageState extends State<_MePage> {
                 FutureBuilder<WeiboUser?>(
                   future: _fallbackUserFuture,
                   builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return _buildUserLoadingCard(context, colorScheme);
+                    }
                     final user = snapshot.data;
+                    if (user == null) {
+                      return _buildUserUnavailableCard(context, colorScheme);
+                    }
                     return _buildUserCard(context, colorScheme, user);
                   },
                 ),
@@ -233,13 +237,13 @@ class _MePageState extends State<_MePage> {
                 _buildMenuItem(
                   context,
                   icon: Icons.history,
-                  title: '浏览历史',
+                  title: context.i18n.tr('浏览历史', 'History'),
                   onTap: () => context.push('/history'),
                 ),
                 _buildMenuItem(
                   context,
                   icon: Icons.star_outline,
-                  title: '我的收藏',
+                  title: context.i18n.tr('我的收藏', 'My Favorites'),
                   onTap: () => context.push('/favorites'),
                 ),
               ],
@@ -248,13 +252,13 @@ class _MePageState extends State<_MePage> {
                 _buildMenuItem(
                   context,
                   icon: Icons.history,
-                  title: '浏览历史',
+                  title: context.i18n.tr('浏览历史', 'History'),
                   onTap: () => context.push('/history'),
                 ),
               _buildMenuItem(
                 context,
                 icon: Icons.settings_outlined,
-                title: '设置',
+                title: context.i18n.tr('设置', 'Settings'),
                 onTap: () => context.push('/settings'),
               ),
             ],
@@ -265,6 +269,7 @@ class _MePageState extends State<_MePage> {
   }
 
   Widget _buildGuestCard(BuildContext context, ColorScheme colorScheme) {
+    final i18n = context.i18n;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       child: Padding(
@@ -281,10 +286,16 @@ class _MePageState extends State<_MePage> {
               ),
             ),
             const SizedBox(height: 12),
-            Text('未登录', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              i18n.tr('未登录', 'Not signed in'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 4),
             Text(
-              '登录后可查看收藏、个人资料等',
+              i18n.tr(
+                '登录后可查看收藏、个人资料等',
+                'Sign in to view favorites and personal profile details',
+              ),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -293,7 +304,104 @@ class _MePageState extends State<_MePage> {
             FilledButton.icon(
               onPressed: () => context.go('/login'),
               icon: const Icon(Icons.login),
-              label: const Text('去登录'),
+              label: Text(i18n.tr('去登录', 'Sign In')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserLoadingCard(BuildContext context, ColorScheme colorScheme) {
+    final i18n = context.i18n;
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 32,
+              backgroundColor: colorScheme.surfaceContainerHighest,
+              child: const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    i18n.tr('正在同步账号信息', 'Syncing account details'),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    i18n.tr(
+                      '这通常只需要几秒钟',
+                      'This usually takes just a few seconds',
+                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserUnavailableCard(
+    BuildContext context,
+    ColorScheme colorScheme,
+  ) {
+    final i18n = context.i18n;
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            CircleAvatar(
+              radius: 32,
+              backgroundColor: colorScheme.errorContainer,
+              child: Icon(
+                Icons.person_off_outlined,
+                size: 30,
+                color: colorScheme.onErrorContainer,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              i18n.tr('暂时无法获取账号信息', 'Unable to load account details'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              i18n.tr(
+                '请稍后重试，或重新登录以刷新会话',
+                'Please try again later or sign in again to refresh the session',
+              ),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                setState(() {
+                  _fallbackUserFuture = _resolveCurrentUser();
+                });
+              },
+              icon: const Icon(Icons.refresh),
+              label: Text(i18n.tr('重试', 'Retry')),
             ),
           ],
         ),
@@ -306,8 +414,10 @@ class _MePageState extends State<_MePage> {
     ColorScheme colorScheme,
     WeiboUser? user,
   ) {
-    final screenName = user?.screenName ?? '微博用户';
-    final description = user?.description ?? '点击查看个人资料';
+    final i18n = context.i18n;
+    final screenName = user?.screenName ?? i18n.tr('微博用户', 'Weibo User');
+    final description =
+        user?.description ?? i18n.tr('点击查看个人资料', 'Tap to view profile');
     final avatarUrl = user?.profileImageUrl;
     final userId = user?.id;
 
@@ -384,17 +494,17 @@ class _MePageState extends State<_MePage> {
                   children: [
                     _buildStatItem(
                       context,
-                      label: '微博',
+                      label: i18n.tr('微博', 'Posts'),
                       count: user.statusesCount,
                     ),
                     _buildStatItem(
                       context,
-                      label: '关注',
+                      label: i18n.tr('关注', 'Following'),
                       count: user.friendsCount,
                     ),
                     _buildStatItem(
                       context,
-                      label: '粉丝',
+                      label: i18n.tr('粉丝', 'Followers'),
                       count: user.followersCount,
                     ),
                   ],

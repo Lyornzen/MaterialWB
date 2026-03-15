@@ -232,7 +232,7 @@ class WeiboWebApi {
       queryParameters: {
         'type': 'uid',
         'value': userId,
-        'containerid': '107603${userId}',
+        'containerid': '107603$userId',
         'page': page,
       },
     );

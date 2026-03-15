@@ -246,6 +246,17 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     try {
       final data = await webApi.searchUsers(event.query);
       final List<WeiboUser> users = [];
+      final seenIds = <String>{};
+
+      void tryAddUser(dynamic raw) {
+        if (raw is! Map<String, dynamic>) return;
+        try {
+          final user = UserModel.fromJson(raw);
+          if (user.id.isEmpty || seenIds.contains(user.id)) return;
+          seenIds.add(user.id);
+          users.add(user);
+        } catch (_) {}
+      }
 
       // PC web 格式: { "ok": 1, "data": { "users": [...] } }
       final userList =
@@ -254,11 +265,43 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           (data['data'] as List?) ??
           [];
       for (final item in userList) {
-        if (item is Map<String, dynamic>) {
-          try {
-            users.add(UserModel.fromJson(item));
-          } catch (_) {}
+        tryAddUser(item);
+      }
+
+      if (users.isEmpty) {
+        final dataInner = data['data'];
+        if (dataInner is Map<String, dynamic> && dataInner['list'] is List) {
+          for (final item in dataInner['list'] as List) {
+            if (item is Map<String, dynamic>) {
+              tryAddUser(item['user'] ?? item);
+            }
+          }
         }
+      }
+
+      if (users.isEmpty) {
+        void walk(dynamic node) {
+          if (node is Map<String, dynamic>) {
+            final hasIdentity =
+                node.containsKey('id') &&
+                (node.containsKey('screen_name') || node.containsKey('name'));
+            if (hasIdentity) {
+              tryAddUser(node);
+            }
+            if (node['user'] is Map<String, dynamic>) {
+              tryAddUser(node['user']);
+            }
+            for (final value in node.values) {
+              walk(value);
+            }
+          } else if (node is List) {
+            for (final item in node) {
+              walk(item);
+            }
+          }
+        }
+
+        walk(data);
       }
 
       emit(SearchUserResultLoaded(users: users, query: event.query));

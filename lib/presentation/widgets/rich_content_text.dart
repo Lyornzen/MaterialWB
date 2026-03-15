@@ -107,7 +107,7 @@ class RichContentText extends StatelessWidget {
           width: (defaultStyle.fontSize ?? 14) * 1.35,
           height: (defaultStyle.fontSize ?? 14) * 1.35,
           fit: BoxFit.contain,
-          errorWidget: (_, __, ___) => Text(alt, style: defaultStyle),
+          errorWidget: (_, _, _) => Text(alt, style: defaultStyle),
         ),
       ),
     );

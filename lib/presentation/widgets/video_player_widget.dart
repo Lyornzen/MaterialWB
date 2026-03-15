@@ -124,9 +124,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
-              placeholder: (_, __) =>
+              placeholder: (_, _) =>
                   Container(color: colorScheme.surfaceContainerHighest),
-              errorWidget: (_, __, ___) => Container(
+              errorWidget: (_, _, _) => Container(
                 color: colorScheme.surfaceContainerHighest,
                 child: Icon(
                   Icons.videocam,

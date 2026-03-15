@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_weibo/core/i18n/app_i18n.dart';
 import 'package:material_weibo/presentation/blocs/favorite/favorite_cubit.dart';
+import 'package:material_weibo/presentation/widgets/empty_state.dart';
 import 'package:material_weibo/presentation/widgets/weibo_card.dart';
 import 'package:material_weibo/presentation/widgets/loading_indicator.dart';
 import 'package:material_weibo/presentation/widgets/error_widget.dart';
@@ -29,25 +30,12 @@ class _FavoritesPageState extends State<FavoritesPage> {
         builder: (context, state) {
           if (state is FavoriteLoading) return const LoadingIndicator();
           if (state is FavoriteUnavailable) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.lock_outline,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      state.message,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
+            return AppEmptyState(
+              icon: Icons.lock_outline,
+              title: state.message,
+              subtitle: i18n.tr(
+                '登录后即可同步微博收藏内容',
+                'Sign in to sync your favorite posts',
               ),
             );
           }
@@ -59,21 +47,12 @@ class _FavoritesPageState extends State<FavoritesPage> {
           }
           if (state is FavoriteLoaded) {
             if (state.favorites.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.star_outline,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      i18n.tr('暂无收藏', 'No favorites yet'),
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
+              return AppEmptyState(
+                icon: Icons.star_outline,
+                title: i18n.tr('暂无收藏', 'No favorites yet'),
+                subtitle: i18n.tr(
+                  '你收藏的微博会显示在这里',
+                  'Posts you favorite will appear here',
                 ),
               );
             }

@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:material_weibo/core/constants/api_constants.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_bloc.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_event.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_state.dart';
@@ -15,41 +14,18 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-enum _WebViewMode { none, oauth, cookie }
+enum _WebViewMode { none, cookie }
 
 class _LoginPageState extends State<LoginPage> {
   _WebViewMode _webViewMode = _WebViewMode.none;
   bool _isProcessingLogin = false;
-  late final WebViewController _oauthController;
   late final WebViewController _cookieController;
 
   @override
   void initState() {
     super.initState();
 
-    // OAuth WebView 控制器
-    _oauthController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onNavigationRequest: (request) {
-            final uri = Uri.parse(request.url);
-            if (request.url.startsWith(ApiConstants.redirectUri)) {
-              final code = uri.queryParameters['code'];
-              if (code != null && mounted) {
-                // 尝试提取 cookie 并保存
-                _extractAndSaveCookie();
-                context.read<AuthBloc>().add(AuthLoginRequested(code: code));
-                setState(() => _webViewMode = _WebViewMode.none);
-              }
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
-        ),
-      );
-
-    // Cookie 登录 WebView 控制器
+    // 微博网页登录 WebView 控制器
     _cookieController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted);
   }
@@ -128,37 +104,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// OAuth 重定向后提取 cookie 并保存（补充 OAuth 登录的 cookie 同步）
-  Future<void> _extractAndSaveCookie() async {
-    try {
-      // 优先尝试原生方式获取 cookie
-      final cookie =
-          await _getNativeCookie('https://weibo.com') ??
-          await _getNativeCookie('https://m.weibo.cn');
-      if (cookie != null && cookie.isNotEmpty && mounted) {
-        context.read<AuthBloc>().add(AuthCookieSaved(cookie: cookie));
-        return;
-      }
-      // 回退到 JS 方式
-      final jsCookie = await _oauthController.runJavaScriptReturningResult(
-        'document.cookie',
-      );
-      final cookieStr = jsCookie.toString().replaceAll('"', '');
-      if (cookieStr.isNotEmpty && mounted) {
-        context.read<AuthBloc>().add(AuthCookieSaved(cookie: cookieStr));
-      }
-    } catch (_) {
-      // cookie 提取失败不影响 OAuth 登录流程
-    }
-  }
-
-  void _startOAuthLogin() {
-    final authBloc = context.read<AuthBloc>();
-    final url = (authBloc.authRepository).getAuthorizeUrl();
-    _oauthController.loadRequest(Uri.parse(url));
-    setState(() => _webViewMode = _WebViewMode.oauth);
-  }
-
   void _startCookieLogin() {
     _cookieController.loadRequest(
       Uri.parse('https://passport.weibo.cn/signin/login'),
@@ -221,9 +166,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildWebView(BuildContext context) {
-    final isOAuth = _webViewMode == _WebViewMode.oauth;
-    final controller = isOAuth ? _oauthController : _cookieController;
-    final title = isOAuth ? '微博 OAuth 登录' : '微博账号登录';
+    final controller = _cookieController;
+    final title = '微博账号登录';
     final colorScheme = Theme.of(context).colorScheme;
 
     return SafeArea(
@@ -236,21 +180,20 @@ class _LoginPageState extends State<LoginPage> {
               onPressed: () => setState(() => _webViewMode = _WebViewMode.none),
             ),
             actions: [
-              if (!isOAuth)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilledButton.icon(
-                    onPressed: _manualCheckCookie,
-                    icon: const Icon(Icons.check, size: 18),
-                    label: const Text('登录完成'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colorScheme.primary,
-                      foregroundColor: colorScheme.onPrimary,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      visualDensity: VisualDensity.compact,
-                    ),
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilledButton.icon(
+                  onPressed: _manualCheckCookie,
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('登录完成'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    visualDensity: VisualDensity.compact,
                   ),
                 ),
+              ),
             ],
           ),
           Expanded(child: WebViewWidget(controller: controller)),
@@ -285,7 +228,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
             const Spacer(),
 
-            // Web Cookie 登录（推荐，不需要开发者 Key）
+            // 通过微博网页登录同步 Cookie 会话
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -293,20 +236,6 @@ class _LoginPageState extends State<LoginPage> {
                 icon: const Icon(Icons.login),
                 label: const Text('使用微博账号登录'),
                 style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // OAuth 登录（需要开发者 Key）
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _startOAuthLogin,
-                icon: const Icon(Icons.key),
-                label: const Text('开发者 OAuth 登录'),
-                style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
               ),
@@ -330,7 +259,7 @@ class _LoginPageState extends State<LoginPage> {
             const SizedBox(height: 16),
 
             Text(
-              '登录即表示同意微博用户协议',
+              '使用网页端登录态同步信息，避免依赖无效配置项',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: colorScheme.outline),

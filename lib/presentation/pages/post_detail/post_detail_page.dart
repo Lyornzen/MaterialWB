@@ -253,7 +253,7 @@ class _CommentItem extends StatelessWidget {
                       child: Image.network(
                         comment.picUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       ),
                     ),
                   ),
@@ -349,7 +349,7 @@ class _CommentItem extends StatelessWidget {
                               child: Image.network(
                                 comment.replyComment!.picUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
+                                errorBuilder: (_, _, _) =>
                                     const SizedBox.shrink(),
                               ),
                             ),

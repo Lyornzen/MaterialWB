@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:material_weibo/core/constants/api_constants.dart';
 import 'package:material_weibo/core/network/dio_client.dart';
 
@@ -7,31 +6,6 @@ class WeiboOfficialApi {
   final DioClient dioClient;
 
   WeiboOfficialApi({required this.dioClient});
-
-  /// 获取 OAuth 授权 URL
-  String getAuthorizeUrl() {
-    return '${ApiConstants.oauthAuthorizeUrl}'
-        '?client_id=${ApiConstants.appKey}'
-        '&response_type=code'
-        '&redirect_uri=${Uri.encodeComponent(ApiConstants.redirectUri)}';
-  }
-
-  /// 通过授权码获取 access_token
-  Future<Map<String, dynamic>> getAccessToken(String code) async {
-    final dio = Dio();
-    final response = await dio.post(
-      ApiConstants.oauthAccessTokenUrl,
-      data: {
-        'client_id': ApiConstants.appKey,
-        'client_secret': ApiConstants.appSecret,
-        'grant_type': 'authorization_code',
-        'code': code,
-        'redirect_uri': ApiConstants.redirectUri,
-      },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
-    );
-    return response.data as Map<String, dynamic>;
-  }
 
   /// 获取首页时间线
   Future<Map<String, dynamic>> getHomeTimeline({
