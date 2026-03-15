@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_weibo/core/di/injection.dart';
 import 'package:material_weibo/core/network/dio_client.dart';
+import 'package:material_weibo/data/datasources/local/preferences_helper.dart';
 import 'package:material_weibo/domain/repositories/auth_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -58,9 +59,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
               emit(const AuthUnauthenticated());
             }
           } catch (_) {
-            // Cookie 过期，回到未登录状态
-            await authRepository.logout();
-            emit(const AuthUnauthenticated());
+            // 用户资料接口可能暂时失败，不直接清空登录态
+            final cookie = await authRepository.getSavedCookie();
+            if (cookie != null && cookie.isNotEmpty) {
+              emit(
+                AuthAuthenticated(
+                  token: cookie,
+                  loginMethod: 'cookie',
+                ),
+              );
+            } else {
+              emit(const AuthUnauthenticated());
+            }
           }
         } else {
           // OAuth 登录
@@ -113,6 +123,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       await authRepository.saveCookie(event.cookie);
       await authRepository.saveLoginMethod('cookie');
+      // Cookie 登录也保存一个稳定 token，避免下游逻辑判空失败。
+      await authRepository.saveToken('cookie_session');
       try {
         final user = await authRepository.getCurrentUserByCookie();
         final uid = user.id;
@@ -128,11 +140,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           ),
         );
       } catch (_) {
+        final uid = _extractUidFromCookie(event.cookie);
+        if (uid != null && uid.isNotEmpty) {
+          await sl<PreferencesHelper>().setUserId(uid);
+          await authRepository.saveToken('cookie_$uid');
+        }
         emit(AuthAuthenticated(token: event.cookie, loginMethod: 'cookie'));
       }
     } catch (e) {
       emit(AuthError(message: 'Cookie 登录失败: ${e.toString()}'));
     }
+  }
+
+  String? _extractUidFromCookie(String cookie) {
+    final match = RegExp(r'DedeUserID=([^;]+)').firstMatch(cookie);
+    return match?.group(1);
   }
 
   Future<void> _onCookieSaved(

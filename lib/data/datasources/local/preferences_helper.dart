@@ -43,6 +43,17 @@ class PreferencesHelper {
 
   String? getUserId() => prefs.getString(AppConstants.keyUserId);
 
+  // ── 认证信息兜底存储（用于 secure storage 不可用场景）──
+  Future<void> setAccessToken(String token) =>
+      prefs.setString(AppConstants.keyAccessToken, token);
+
+  String? getAccessToken() => prefs.getString(AppConstants.keyAccessToken);
+
+  Future<void> setCookie(String cookie) =>
+      prefs.setString(AppConstants.keyCookie, cookie);
+
+  String? getCookie() => prefs.getString(AppConstants.keyCookie);
+
   // ── 登录方式 ──
   static const String _keyLoginMethod = 'login_method';
 
@@ -50,6 +61,12 @@ class PreferencesHelper {
       prefs.setString(_keyLoginMethod, method);
 
   String? getLoginMethod() => prefs.getString(_keyLoginMethod);
+
+  // ── 语言 ──
+  Future<void> setLanguage(String value) =>
+      prefs.setString(AppConstants.keyLanguage, value);
+
+  String getLanguage() => prefs.getString(AppConstants.keyLanguage) ?? 'system';
 
   // ── 清除所有 ──
   Future<void> clearAll() => prefs.clear();

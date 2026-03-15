@@ -10,6 +10,8 @@ class CommentModel extends Comment {
     required super.createdAt,
     super.likeCount,
     super.replyComment,
+    super.floorNumber,
+    super.ipLocation,
     super.picUrl,
   });
 
@@ -60,11 +62,56 @@ class CommentModel extends Comment {
       user: json['user'] != null
           ? UserModel.fromJson(json['user'])
           : const UserModel(id: '0', screenName: '未知用户', profileImageUrl: ''),
-      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+      createdAt: _parseWeiboDate(json['created_at']?.toString() ?? ''),
       likeCount: json['like_count'] ?? json['like_counts'] ?? 0,
       replyComment: reply,
+      floorNumber: json['floor_number'] as int?,
+      ipLocation:
+          (json['ip_location'] ??
+                  json['source_ip'] ??
+                  json['ip'] ??
+                  json['region_name'])
+              ?.toString(),
       picUrl: picUrl,
     );
+  }
+
+  static DateTime _parseWeiboDate(String dateStr) {
+    if (dateStr.isEmpty) return DateTime.now();
+    final iso = DateTime.tryParse(dateStr);
+    if (iso != null) return iso;
+    try {
+      const months = {
+        'Jan': 1,
+        'Feb': 2,
+        'Mar': 3,
+        'Apr': 4,
+        'May': 5,
+        'Jun': 6,
+        'Jul': 7,
+        'Aug': 8,
+        'Sep': 9,
+        'Oct': 10,
+        'Nov': 11,
+        'Dec': 12,
+      };
+      final parts = dateStr.split(' ');
+      if (parts.length < 6) return DateTime.now();
+      final month = months[parts[1]] ?? 1;
+      final day = int.tryParse(parts[2]) ?? 1;
+      final timeParts = parts[3].split(':');
+      final year = int.tryParse(parts[5]) ?? DateTime.now().year;
+      return DateTime(
+        year,
+        month,
+        day,
+        int.tryParse(timeParts.isNotEmpty ? timeParts[0] : '0') ?? 0,
+        int.tryParse(timeParts.length > 1 ? timeParts[1] : '0') ?? 0,
+        int.tryParse(timeParts.length > 2 ? timeParts[2] : '0') ?? 0,
+      );
+    } catch (_) {
+      return DateTime.now();
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -74,6 +121,8 @@ class CommentModel extends Comment {
       'user': (user as UserModel).toJson(),
       'created_at': createdAt.toIso8601String(),
       'like_count': likeCount,
+      'floor_number': floorNumber,
+      'ip_location': ipLocation,
       if (picUrl != null) 'pic_url': picUrl,
     };
   }

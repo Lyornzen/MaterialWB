@@ -9,6 +9,8 @@ class Comment extends Equatable {
   final DateTime createdAt;
   final int likeCount;
   final Comment? replyComment;
+  final int? floorNumber;
+  final String? ipLocation;
 
   /// 评论配图 URL（图片回复）
   final String? picUrl;
@@ -20,6 +22,8 @@ class Comment extends Equatable {
     required this.createdAt,
     this.likeCount = 0,
     this.replyComment,
+    this.floorNumber,
+    this.ipLocation,
     this.picUrl,
   });
 

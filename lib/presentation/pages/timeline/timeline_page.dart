@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_weibo/core/i18n/app_i18n.dart';
 import 'package:material_weibo/presentation/blocs/timeline/timeline_bloc.dart';
 import 'package:material_weibo/presentation/blocs/timeline/timeline_event.dart';
 import 'package:material_weibo/presentation/blocs/timeline/timeline_state.dart';
@@ -12,10 +13,10 @@ class TimelinePage extends StatefulWidget {
   const TimelinePage({super.key});
 
   @override
-  State<TimelinePage> createState() => _TimelinePageState();
+  State<TimelinePage> createState() => TimelinePageState();
 }
 
-class _TimelinePageState extends State<TimelinePage> {
+class TimelinePageState extends State<TimelinePage> {
   final _scrollController = ScrollController();
 
   @override
@@ -44,8 +45,22 @@ class _TimelinePageState extends State<TimelinePage> {
     return currentScroll >= (maxScroll * 0.9);
   }
 
+  Future<void> scrollToTopAndRefresh() async {
+    if (_scrollController.hasClients) {
+      await _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOut,
+      );
+    }
+    if (mounted) {
+      context.read<TimelineBloc>().add(const TimelineRefreshed());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final i18n = context.i18n;
     return Scaffold(
       appBar: AppBar(
         title: const Text('MaterialWeibo'),
@@ -80,7 +95,10 @@ class _TimelinePageState extends State<TimelinePage> {
                       color: Theme.of(context).colorScheme.outline,
                     ),
                     const SizedBox(height: 16),
-                    Text('暂无微博', style: Theme.of(context).textTheme.bodyLarge),
+                    Text(
+                      i18n.tr('暂无微博', 'No posts yet'),
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
                   ],
                 ),
               );

@@ -261,7 +261,8 @@ class WeiboPostModel extends WeiboPost {
         final playInfo = item['play_info'];
         if (playInfo != null) {
           final url = playInfo['url'] as String?;
-          if (url != null && url.isNotEmpty) return url;
+          final normalized = _normalizeMediaUrl(url);
+          if (normalized != null) return normalized;
         }
       }
     }
@@ -279,7 +280,8 @@ class WeiboPostModel extends WeiboPost {
           mediaInfo['mp4_ld_mp4'] ??
           mediaInfo['stream_url_hd'] ??
           mediaInfo['stream_url'];
-      if (url != null && (url as String).isNotEmpty) return url;
+      final normalized = _normalizeMediaUrl(url?.toString());
+      if (normalized != null) return normalized;
 
       // 3. 尝试 video_details（部分 PC web 格式）
       final videoDetails = mediaInfo['video_details'] as List?;
@@ -289,13 +291,15 @@ class WeiboPostModel extends WeiboPost {
           // 优先选择 1080p/720p
           if (label.contains('1080') || label.contains('720')) {
             final detailUrl = detail['url'] as String?;
-            if (detailUrl != null && detailUrl.isNotEmpty) return detailUrl;
+            final normalized = _normalizeMediaUrl(detailUrl);
+            if (normalized != null) return normalized;
           }
         }
         // 回退到任意可用的 video_detail
         for (final detail in videoDetails) {
           final detailUrl = detail['url'] as String?;
-          if (detailUrl != null && detailUrl.isNotEmpty) return detailUrl;
+          final normalized = _normalizeMediaUrl(detailUrl);
+          if (normalized != null) return normalized;
         }
       }
     }
@@ -313,7 +317,8 @@ class WeiboPostModel extends WeiboPost {
       if (playbackList != null) {
         for (final pb in playbackList) {
           final url = pb['play_info']?['url'] as String?;
-          if (url != null && url.isNotEmpty) return url;
+          final normalized = _normalizeMediaUrl(url);
+          if (normalized != null) return normalized;
         }
       }
       // 尝试 media_info
@@ -325,17 +330,40 @@ class WeiboPostModel extends WeiboPost {
             mediaInfo['mp4_sd_mp4'] ??
             mediaInfo['stream_url_hd'] ??
             mediaInfo['stream_url'];
-        if (url != null && (url as String).isNotEmpty) return url;
+        final normalized = _normalizeMediaUrl(url?.toString());
+        if (normalized != null) return normalized;
       }
       // 直接 stream_url
       final streamUrl = videoInfo['stream_url'] as String?;
-      if (streamUrl != null && streamUrl.isNotEmpty) return streamUrl;
+      final normalized = _normalizeMediaUrl(streamUrl);
+      if (normalized != null) return normalized;
     }
 
     // 部分 mix item 直接带 url 字段
     final directUrl = item['stream_url'] as String?;
-    if (directUrl != null && directUrl.isNotEmpty) return directUrl;
+    final normalized = _normalizeMediaUrl(directUrl);
+    if (normalized != null) return normalized;
 
+    return null;
+  }
+
+  static String? _normalizeMediaUrl(String? url) {
+    if (url == null || url.isEmpty) return null;
+    var value = url.trim().replaceAll(r'\/', '/');
+    if (value.startsWith('//')) {
+      value = 'https:$value';
+    }
+    if (value.startsWith('http://')) {
+      value = value.replaceFirst('http://', 'https://');
+    }
+    if (value.startsWith('https://') &&
+        (value.endsWith('.mp4') ||
+            value.contains('.mp4?') ||
+            value.endsWith('.m3u8') ||
+            value.contains('.m3u8?') ||
+            value.contains('weibocdn.com'))) {
+      return value;
+    }
     return null;
   }
 }

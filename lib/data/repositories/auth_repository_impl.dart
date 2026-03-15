@@ -42,21 +42,51 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<String?> getSavedToken() =>
-      secureStorage.read(key: AppConstants.keyAccessToken);
+      _readTokenWithFallback();
+
+  Future<String?> _readTokenWithFallback() async {
+    try {
+      final token = await secureStorage.read(key: AppConstants.keyAccessToken);
+      if (token != null && token.isNotEmpty) {
+        await prefsHelper.setAccessToken(token);
+        return token;
+      }
+    } catch (_) {}
+    final fallback = prefsHelper.getAccessToken();
+    if (fallback != null && fallback.isNotEmpty) return fallback;
+    return null;
+  }
 
   @override
-  Future<void> saveToken(String token) =>
-      secureStorage.write(key: AppConstants.keyAccessToken, value: token);
+  Future<void> saveToken(String token) async {
+    await prefsHelper.setAccessToken(token);
+    try {
+      await secureStorage.write(key: AppConstants.keyAccessToken, value: token);
+    } catch (_) {}
+  }
 
   @override
   Future<void> saveCookie(String cookie) async {
-    await secureStorage.write(key: AppConstants.keyCookie, value: cookie);
+    await prefsHelper.setCookie(cookie);
+    try {
+      await secureStorage.write(key: AppConstants.keyCookie, value: cookie);
+    } catch (_) {}
     dioClient.updateCookie(cookie);
   }
 
   @override
-  Future<String?> getSavedCookie() =>
-      secureStorage.read(key: AppConstants.keyCookie);
+  Future<String?> getSavedCookie() async {
+    try {
+      final cookie = await secureStorage.read(key: AppConstants.keyCookie);
+      if (cookie != null && cookie.isNotEmpty) {
+        await prefsHelper.setCookie(cookie);
+        return cookie;
+      }
+    } catch (_) {}
+    final fallback = prefsHelper.getCookie();
+    if (fallback != null && fallback.isNotEmpty) return fallback;
+    return null;
+  }
 
   @override
   Future<WeiboUser> getCurrentUser(String token) async {
@@ -69,7 +99,11 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<WeiboUser> getCurrentUserByCookie() async {
     final data = await webApi.getLoggedInUserInfo();
-    return UserModel.fromJson(data);
+    final user = UserModel.fromJson(data);
+    if (user.id.isNotEmpty) {
+      await prefsHelper.setUserId(user.id);
+    }
+    return user;
   }
 
   @override
@@ -93,8 +127,10 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> logout() async {
-    await secureStorage.delete(key: AppConstants.keyAccessToken);
-    await secureStorage.delete(key: AppConstants.keyCookie);
+    try {
+      await secureStorage.delete(key: AppConstants.keyAccessToken);
+      await secureStorage.delete(key: AppConstants.keyCookie);
+    } catch (_) {}
     dioClient.updateToken(null);
     dioClient.updateCookie(null);
     await prefsHelper.clearAll();
