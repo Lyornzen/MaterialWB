@@ -19,6 +19,33 @@ class UserModel extends WeiboUser {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    bool? parseFollowing() {
+      final raw =
+          json['following'] ??
+          json['follow'] ??
+          json['is_follow'] ??
+          json['isFollowing'] ??
+          json['followed'] ??
+          json['is_attent'] ??
+          json['follow_state'] ??
+          json['followed_by_me'];
+      if (raw is bool) return raw;
+      if (raw is num) return raw != 0;
+      if (raw is String) {
+        if (raw == '1' || raw.toLowerCase() == 'true') return true;
+        if (raw == '0' || raw.toLowerCase() == 'false') return false;
+      }
+
+      final relation = json['relation'];
+      if (relation is Map<String, dynamic>) {
+        final isFollowing =
+            relation['is_follow'] ?? relation['following'] ?? relation['follow'];
+        if (isFollowing is bool) return isFollowing;
+        if (isFollowing is num) return isFollowing != 0;
+      }
+      return null;
+    }
+
     return UserModel(
       id: (json['id'] ?? json['idstr'] ?? '').toString(),
       screenName: json['screen_name'] ?? json['name'] ?? '',
@@ -36,7 +63,7 @@ class UserModel extends WeiboUser {
       coverImageUrl: json['cover_image_phone'] as String?,
       gender: json['gender'] as String?,
       location: json['location'] as String?,
-      following: json['following'] as bool?,
+      following: parseFollowing(),
     );
   }
 

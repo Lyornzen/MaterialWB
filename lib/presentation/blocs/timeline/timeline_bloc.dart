@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_weibo/core/di/injection.dart';
+import 'package:material_weibo/domain/entities/weibo_post.dart';
 import 'package:material_weibo/domain/repositories/auth_repository.dart';
 import 'package:material_weibo/domain/repositories/timeline_repository.dart';
 import 'timeline_event.dart';
@@ -7,6 +8,7 @@ import 'timeline_state.dart';
 
 class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
   final TimelineRepository timelineRepository;
+  TimelineFeedType _activeFeed = TimelineFeedType.recommend;
 
   TimelineBloc({required this.timelineRepository})
     : super(const TimelineInitial()) {
@@ -29,17 +31,35 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
   ) async {
     emit(const TimelineLoading());
     try {
+      _activeFeed = event.feedType;
       final token = await _getToken();
-      final posts = token != null
-          ? await timelineRepository.getHomeTimeline(token: token)
-          : await timelineRepository.getRecommendTimeline();
-      emit(TimelineLoaded(posts: posts, hasReachedMax: posts.length < 20));
+      final List<WeiboPost> posts = switch (_activeFeed) {
+        TimelineFeedType.recommend => await timelineRepository
+            .getRecommendTimeline(),
+        TimelineFeedType.following =>
+          token != null
+              ? await timelineRepository.getHomeTimeline(token: token)
+              : <WeiboPost>[],
+      };
+      emit(
+        TimelineLoaded(
+          posts: posts,
+          hasReachedMax: posts.length < 20,
+          feedType: _activeFeed,
+        ),
+      );
     } catch (e) {
       // 尝试加载缓存
       try {
         final cached = await timelineRepository.getCachedTimeline();
         if (cached.isNotEmpty) {
-          emit(TimelineLoaded(posts: cached, hasReachedMax: true));
+          emit(
+            TimelineLoaded(
+              posts: cached,
+              hasReachedMax: true,
+              feedType: _activeFeed,
+            ),
+          );
         } else {
           emit(TimelineError(message: e.toString()));
         }
@@ -60,15 +80,20 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
       final nextPage = currentState.currentPage + 1;
       final token = await _getToken();
 
-      final newPosts = token != null
-          ? await timelineRepository.getHomeTimeline(
-              token: token,
-              page: nextPage,
-              maxId: currentState.posts.isNotEmpty
-                  ? currentState.posts.last.id
-                  : null,
-            )
-          : await timelineRepository.getRecommendTimeline(page: nextPage);
+      final List<WeiboPost> newPosts = switch (currentState.feedType) {
+        TimelineFeedType.recommend => await timelineRepository
+            .getRecommendTimeline(page: nextPage),
+        TimelineFeedType.following =>
+          token != null
+              ? await timelineRepository.getHomeTimeline(
+                  token: token,
+                  page: nextPage,
+                  maxId: currentState.posts.isNotEmpty
+                      ? currentState.posts.last.id
+                      : null,
+                )
+              : <WeiboPost>[],
+      };
 
       emit(
         currentState.copyWith(
@@ -88,7 +113,13 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
   ) async {
     final cached = await timelineRepository.getCachedTimeline();
     if (cached.isNotEmpty) {
-      emit(TimelineLoaded(posts: cached, hasReachedMax: true));
+      emit(
+        TimelineLoaded(
+          posts: cached,
+          hasReachedMax: true,
+          feedType: _activeFeed,
+        ),
+      );
     }
   }
 }
