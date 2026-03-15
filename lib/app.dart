@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dynamic_color/dynamic_color.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/di/injection.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -40,6 +41,20 @@ class MaterialWeiboApp extends StatelessWidget {
                   title: 'Material \u5fae\u535a',
                   debugShowCheckedModeBanner: false,
                   themeMode: settings.themeMode,
+                  locale: switch (settings.language) {
+                    'zh' => const Locale('zh', 'CN'),
+                    'en' => const Locale('en', 'US'),
+                    _ => null,
+                  },
+                  supportedLocales: const [
+                    Locale('zh', 'CN'),
+                    Locale('en', 'US'),
+                  ],
+                  localizationsDelegates: const [
+                    GlobalMaterialLocalizations.delegate,
+                    GlobalWidgetsLocalizations.delegate,
+                    GlobalCupertinoLocalizations.delegate,
+                  ],
                   theme: AppTheme.light(
                     dynamicScheme: lightDynamic,
                     seedColor: settings.seedColor,

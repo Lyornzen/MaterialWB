@@ -6,6 +6,7 @@ class WeiboPost extends Equatable {
   final String id;
   final String text;
   final String? rawText;
+  final String? fullText;
   final WeiboUser user;
   final DateTime createdAt;
   final int repostsCount;
@@ -17,11 +18,13 @@ class WeiboPost extends Equatable {
   final WeiboPost? retweetedStatus;
   final String? source;
   final bool? favorited;
+  final bool isLongText;
 
   const WeiboPost({
     required this.id,
     required this.text,
     this.rawText,
+    this.fullText,
     required this.user,
     required this.createdAt,
     this.repostsCount = 0,
@@ -33,6 +36,7 @@ class WeiboPost extends Equatable {
     this.retweetedStatus,
     this.source,
     this.favorited,
+    this.isLongText = false,
   });
 
   @override

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:material_weibo/core/constants/login_method.dart';
 import 'package:material_weibo/core/di/injection.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
 import 'package:material_weibo/data/models/user_model.dart';
@@ -57,8 +58,8 @@ class ProfileCubit extends Cubit<ProfileState> {
       WeiboUser user;
       List<WeiboPost> posts = [];
 
-      if (method == 'oauth' && token != null) {
-        // OAuth 登录 — 使用官方 API
+      if (LoginMethod.usesToken(method) && token != null) {
+        // Token 登录 — 使用官方 API
         user = await userRepository.getUserInfo(token: token, userId: userId);
         posts = await sl<TimelineRepository>().getUserTimeline(
           token: token,

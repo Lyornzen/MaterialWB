@@ -1,5 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:material_weibo/core/constants/app_constants.dart';
+import 'package:material_weibo/core/constants/login_method.dart';
 import 'package:material_weibo/core/network/dio_client.dart';
 import 'package:material_weibo/data/datasources/local/preferences_helper.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_official_api.dart';
@@ -24,39 +25,52 @@ class AuthRepositoryImpl implements AuthRepository {
   });
 
   @override
-  String getAuthorizeUrl() => officialApi.getAuthorizeUrl();
+  Future<String?> getSavedToken() =>
+      _readTokenWithFallback();
 
-  @override
-  Future<String> getAccessToken(String code) async {
-    final data = await officialApi.getAccessToken(code);
-    final token = data['access_token'] as String;
-    final uid = data['uid']?.toString() ?? '';
-    await saveToken(token);
-    await saveLoginMethod('oauth');
-    dioClient.updateToken(token);
-    if (uid.isNotEmpty) {
-      await prefsHelper.setUserId(uid);
-    }
-    return token;
+  Future<String?> _readTokenWithFallback() async {
+    try {
+      final token = await secureStorage.read(key: AppConstants.keyAccessToken);
+      if (token != null && token.isNotEmpty) {
+        await prefsHelper.setAccessToken(token);
+        return token;
+      }
+    } catch (_) {}
+    final fallback = prefsHelper.getAccessToken();
+    if (fallback != null && fallback.isNotEmpty) return fallback;
+    return null;
   }
 
   @override
-  Future<String?> getSavedToken() =>
-      secureStorage.read(key: AppConstants.keyAccessToken);
-
-  @override
-  Future<void> saveToken(String token) =>
-      secureStorage.write(key: AppConstants.keyAccessToken, value: token);
+  Future<void> saveToken(String token) async {
+    await prefsHelper.setAccessToken(token);
+    try {
+      await secureStorage.write(key: AppConstants.keyAccessToken, value: token);
+    } catch (_) {}
+  }
 
   @override
   Future<void> saveCookie(String cookie) async {
-    await secureStorage.write(key: AppConstants.keyCookie, value: cookie);
+    await prefsHelper.setCookie(cookie);
+    try {
+      await secureStorage.write(key: AppConstants.keyCookie, value: cookie);
+    } catch (_) {}
     dioClient.updateCookie(cookie);
   }
 
   @override
-  Future<String?> getSavedCookie() =>
-      secureStorage.read(key: AppConstants.keyCookie);
+  Future<String?> getSavedCookie() async {
+    try {
+      final cookie = await secureStorage.read(key: AppConstants.keyCookie);
+      if (cookie != null && cookie.isNotEmpty) {
+        await prefsHelper.setCookie(cookie);
+        return cookie;
+      }
+    } catch (_) {}
+    final fallback = prefsHelper.getCookie();
+    if (fallback != null && fallback.isNotEmpty) return fallback;
+    return null;
+  }
 
   @override
   Future<WeiboUser> getCurrentUser(String token) async {
@@ -69,21 +83,39 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<WeiboUser> getCurrentUserByCookie() async {
     final data = await webApi.getLoggedInUserInfo();
-    return UserModel.fromJson(data);
+    final user = UserModel.fromJson(data);
+    if (user.id.isNotEmpty) {
+      await prefsHelper.setUserId(user.id);
+    }
+    return user;
   }
 
   @override
   Future<void> saveLoginMethod(String method) async {
-    await prefsHelper.setLoginMethod(method);
+    await prefsHelper.setLoginMethod(LoginMethod.normalize(method));
   }
 
   @override
-  String? getLoginMethod() => prefsHelper.getLoginMethod();
+  String? getLoginMethod() {
+    final stored = prefsHelper.getLoginMethod();
+    if (stored != null && stored.isNotEmpty) {
+      return LoginMethod.normalize(stored);
+    }
+    final cookie = prefsHelper.getCookie();
+    if (cookie != null && cookie.isNotEmpty) {
+      return LoginMethod.cookie;
+    }
+    final token = prefsHelper.getAccessToken();
+    if (token != null && token.isNotEmpty) {
+      return LoginMethod.token;
+    }
+    return null;
+  }
 
   @override
   Future<bool> isLoggedIn() async {
     final method = getLoginMethod();
-    if (method == 'cookie') {
+    if (LoginMethod.usesCookie(method)) {
       final cookie = await getSavedCookie();
       return cookie != null && cookie.isNotEmpty;
     }
@@ -93,8 +125,10 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> logout() async {
-    await secureStorage.delete(key: AppConstants.keyAccessToken);
-    await secureStorage.delete(key: AppConstants.keyCookie);
+    try {
+      await secureStorage.delete(key: AppConstants.keyAccessToken);
+      await secureStorage.delete(key: AppConstants.keyCookie);
+    } catch (_) {}
     dioClient.updateToken(null);
     dioClient.updateCookie(null);
     await prefsHelper.clearAll();

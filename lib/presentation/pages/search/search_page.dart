@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_weibo/core/i18n/app_i18n.dart';
+import 'package:material_weibo/domain/entities/user.dart';
 import 'package:material_weibo/presentation/blocs/search/search_bloc.dart';
+import 'package:material_weibo/presentation/widgets/empty_state.dart';
+import 'package:material_weibo/presentation/widgets/error_widget.dart';
 import 'package:material_weibo/presentation/widgets/weibo_card.dart';
 import 'package:material_weibo/presentation/widgets/loading_indicator.dart';
 
@@ -79,15 +83,16 @@ class _SearchPageState extends State<SearchPage>
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final i18n = context.i18n;
 
     return Scaffold(
       appBar: AppBar(
         title: TextField(
           controller: _searchController,
-          decoration: const InputDecoration(
-            hintText: '搜索微博',
+          decoration: InputDecoration(
+            hintText: i18n.tr('搜索微博', 'Search Weibo'),
             border: InputBorder.none,
-            prefixIcon: Icon(Icons.search),
+            prefixIcon: const Icon(Icons.search),
             isDense: true,
           ),
           onSubmitted: _onSearch,
@@ -95,9 +100,9 @@ class _SearchPageState extends State<SearchPage>
         bottom: _lastQuery.isNotEmpty
             ? TabBar(
                 controller: _tabController,
-                tabs: const [
-                  Tab(text: '微博'),
-                  Tab(text: '用户'),
+                tabs: [
+                  Tab(text: i18n.tr('微博', 'Posts')),
+                  Tab(text: i18n.tr('用户', 'Users')),
                 ],
               )
             : null,
@@ -106,7 +111,10 @@ class _SearchPageState extends State<SearchPage>
         builder: (context, state) {
           if (state is SearchLoading) return const LoadingIndicator();
           if (state is SearchError) {
-            return Center(child: Text(state.message));
+            return AppErrorWidget(
+              message: state.message,
+              onRetry: _lastQuery.isNotEmpty ? () => _executeSearch(_lastQuery) : null,
+            );
           }
           if (state is SearchHotResults) {
             return ListView.builder(
@@ -117,7 +125,7 @@ class _SearchPageState extends State<SearchPage>
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
-                      '热搜榜',
+                      i18n.tr('热搜榜', 'Trending'),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   );
@@ -171,7 +179,9 @@ class _SearchPageState extends State<SearchPage>
                       item['hot'] != null &&
                           item['hot'] != '' &&
                           item['hot'] != '0'
-                      ? Text('${_formatHotCount(item['hot'].toString())} 热度')
+                      ? Text(
+                          '${_formatHotCount(item['hot'].toString())} ${i18n.tr('热度', 'Hot')}',
+                        )
                       : null,
                   onTap: () {
                     _searchController.text = item['title'] ?? '';
@@ -183,19 +193,37 @@ class _SearchPageState extends State<SearchPage>
           }
           if (state is SearchResultLoaded) {
             if (state.posts.isEmpty) {
-              return const Center(child: Text('未找到相关内容'));
+              return AppEmptyState(
+                icon: Icons.search_off,
+                title: i18n.tr('未找到相关内容', 'No matching content'),
+                subtitle: i18n.tr(
+                  '换个关键词，或检查登录状态后再试一次',
+                  'Try another keyword or check your sign-in status',
+                ),
+                actionLabel: i18n.tr('重新搜索', 'Search Again'),
+                onAction: () => _executeSearch(state.query),
+              );
             }
-            return ListView.separated(
+              return ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: state.posts.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 2),
+              separatorBuilder: (_, _) => const SizedBox(height: 2),
               itemBuilder: (context, index) =>
                   WeiboCard(post: state.posts[index]),
             );
           }
           if (state is SearchUserResultLoaded) {
             if (state.users.isEmpty) {
-              return const Center(child: Text('未找到相关用户'));
+              return AppEmptyState(
+                icon: Icons.person_search_outlined,
+                title: i18n.tr('未找到相关用户', 'No matching users'),
+                subtitle: i18n.tr(
+                  '试试更完整的昵称或微博 ID',
+                  'Try a fuller nickname or user ID',
+                ),
+                actionLabel: i18n.tr('重新搜索', 'Search Again'),
+                onAction: () => _executeSearch(state.query),
+              );
             }
             return ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -209,7 +237,17 @@ class _SearchPageState extends State<SearchPage>
               },
             );
           }
-          return const Center(child: Text('搜索你感兴趣的内容'));
+          return AppEmptyState(
+            icon: Icons.manage_search,
+            title: i18n.tr(
+              '搜索你感兴趣的内容',
+              'Search anything you are interested in',
+            ),
+            subtitle: i18n.tr(
+              '可以搜索微博正文、话题或用户',
+              'You can search posts, topics, or users',
+            ),
+          );
         },
       ),
     );
@@ -218,7 +256,7 @@ class _SearchPageState extends State<SearchPage>
 
 /// 用户搜索结果卡片
 class _UserSearchCard extends StatelessWidget {
-  final dynamic user; // WeiboUser
+  final WeiboUser user;
   final VoidCallback? onTap;
 
   const _UserSearchCard({required this.user, this.onTap});
@@ -233,6 +271,7 @@ class _UserSearchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final i18n = context.i18n;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -293,13 +332,13 @@ class _UserSearchCard extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          '粉丝 ${_formatCount(user.followersCount)}',
+                          '${i18n.tr('粉丝', 'Followers')} ${_formatCount(user.followersCount)}',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: colorScheme.outline),
                         ),
                         const SizedBox(width: 16),
                         Text(
-                          '微博 ${_formatCount(user.statusesCount)}',
+                          '${i18n.tr('微博', 'Posts')} ${_formatCount(user.statusesCount)}',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: colorScheme.outline),
                         ),

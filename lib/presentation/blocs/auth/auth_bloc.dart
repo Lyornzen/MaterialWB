@@ -1,6 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:material_weibo/core/constants/login_method.dart';
 import 'package:material_weibo/core/di/injection.dart';
 import 'package:material_weibo/core/network/dio_client.dart';
+import 'package:material_weibo/data/datasources/local/preferences_helper.dart';
 import 'package:material_weibo/domain/repositories/auth_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -10,9 +12,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   AuthBloc({required this.authRepository}) : super(const AuthInitial()) {
     on<AuthCheckStatus>(_onCheckStatus);
-    on<AuthLoginRequested>(_onLoginRequested);
     on<AuthCookieLoginRequested>(_onCookieLoginRequested);
-    on<AuthCookieSaved>(_onCookieSaved);
     on<AuthGuestRequested>(_onGuestRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
   }
@@ -36,8 +36,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       final isLoggedIn = await authRepository.isLoggedIn();
       if (isLoggedIn) {
-        final method = authRepository.getLoginMethod() ?? 'oauth';
-        if (method == 'cookie') {
+        final method = authRepository.getLoginMethod();
+        if (LoginMethod.usesCookie(method)) {
           // Cookie 登录，同步 cookie 到拦截器并获取用户信息
           final cookie = await authRepository.getSavedCookie();
           if (cookie != null && cookie.isNotEmpty) {
@@ -51,19 +51,28 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
                 AuthAuthenticated(
                   token: cookie,
                   user: user,
-                  loginMethod: 'cookie',
+                  loginMethod: LoginMethod.cookie,
                 ),
               );
             } else {
               emit(const AuthUnauthenticated());
             }
           } catch (_) {
-            // Cookie 过期，回到未登录状态
-            await authRepository.logout();
-            emit(const AuthUnauthenticated());
+            // 用户资料接口可能暂时失败，不直接清空登录态
+            final cookie = await authRepository.getSavedCookie();
+            if (cookie != null && cookie.isNotEmpty) {
+              emit(
+                AuthAuthenticated(
+                  token: cookie,
+                  loginMethod: LoginMethod.cookie,
+                ),
+              );
+            } else {
+              emit(const AuthUnauthenticated());
+            }
           }
-        } else {
-          // OAuth 登录
+        } else if (LoginMethod.usesToken(method)) {
+          // Token 登录
           final token = await authRepository.getSavedToken();
           if (token != null) {
             await _syncCredentials(token);
@@ -85,26 +94,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  Future<void> _onLoginRequested(
-    AuthLoginRequested event,
-    Emitter<AuthState> emit,
-  ) async {
-    emit(const AuthLoading());
-    try {
-      final token = await authRepository.getAccessToken(event.code);
-      // 同步 token 到拦截器
-      await _syncCredentials(token);
-      try {
-        final user = await authRepository.getCurrentUser(token);
-        emit(AuthAuthenticated(token: token, user: user));
-      } catch (_) {
-        emit(AuthAuthenticated(token: token));
-      }
-    } catch (e) {
-      emit(AuthError(message: '登录失败: ${e.toString()}'));
-    }
-  }
-
   Future<void> _onCookieLoginRequested(
     AuthCookieLoginRequested event,
     Emitter<AuthState> emit,
@@ -112,7 +101,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthLoading());
     try {
       await authRepository.saveCookie(event.cookie);
-      await authRepository.saveLoginMethod('cookie');
+      await authRepository.saveLoginMethod(LoginMethod.cookie);
+      // Cookie 登录也保存一个稳定 token，避免下游逻辑判空失败。
+      await authRepository.saveToken('cookie_session');
       try {
         final user = await authRepository.getCurrentUserByCookie();
         final uid = user.id;
@@ -124,24 +115,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           AuthAuthenticated(
             token: event.cookie,
             user: user,
-            loginMethod: 'cookie',
+            loginMethod: LoginMethod.cookie,
           ),
         );
       } catch (_) {
-        emit(AuthAuthenticated(token: event.cookie, loginMethod: 'cookie'));
+        final uid = _extractUidFromCookie(event.cookie);
+        if (uid != null && uid.isNotEmpty) {
+          await sl<PreferencesHelper>().setUserId(uid);
+          await authRepository.saveToken('cookie_$uid');
+        }
+        emit(
+          AuthAuthenticated(
+            token: event.cookie,
+            loginMethod: LoginMethod.cookie,
+          ),
+        );
       }
     } catch (e) {
       emit(AuthError(message: 'Cookie 登录失败: ${e.toString()}'));
     }
   }
 
-  Future<void> _onCookieSaved(
-    AuthCookieSaved event,
-    Emitter<AuthState> emit,
-  ) async {
-    await authRepository.saveCookie(event.cookie);
-    // 同步 cookie 到拦截器
-    sl<DioClient>().updateCookie(event.cookie);
+  String? _extractUidFromCookie(String cookie) {
+    final match = RegExp(r'DedeUserID=([^;]+)').firstMatch(cookie);
+    return match?.group(1);
   }
 
   Future<void> _onGuestRequested(

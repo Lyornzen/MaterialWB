@@ -121,18 +121,24 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     try {
       final data = await webApi.search(event.query);
       final List<WeiboPost> posts = [];
+      final seenIds = <String>{};
+
+      void tryAddPost(dynamic raw) {
+        if (raw is! Map<String, dynamic>) return;
+        try {
+          if (WeiboPostModel.isAdPost(raw)) return;
+          final post = WeiboPostModel.fromJson(raw);
+          if (post.id.isEmpty || seenIds.contains(post.id)) return;
+          seenIds.add(post.id);
+          posts.add(post);
+        } catch (_) {}
+      }
 
       // 格式1: PC web searchList — {"ok":1, "statuses":[...]}
       final statuses = data['statuses'] as List?;
       if (statuses != null) {
         for (final s in statuses) {
-          if (s is Map<String, dynamic>) {
-            try {
-              if (!WeiboPostModel.isAdPost(s)) {
-                posts.add(WeiboPostModel.fromJson(s));
-              }
-            } catch (_) {}
-          }
+          tryAddPost(s);
         }
       }
 
@@ -143,12 +149,21 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           final innerStatuses = dataInner['statuses'] as List?;
           if (innerStatuses != null) {
             for (final s in innerStatuses) {
-              if (s is Map<String, dynamic>) {
-                try {
-                  if (!WeiboPostModel.isAdPost(s)) {
-                    posts.add(WeiboPostModel.fromJson(s));
-                  }
-                } catch (_) {}
+              tryAddPost(s);
+            }
+          }
+        }
+      }
+
+      // 格式2.1: PC web 部分版本返回 data.list
+      if (posts.isEmpty) {
+        final dataInner = data['data'];
+        if (dataInner is Map<String, dynamic>) {
+          final innerList = dataInner['list'] as List?;
+          if (innerList != null) {
+            for (final item in innerList) {
+              if (item is Map<String, dynamic>) {
+                tryAddPost(item['mblog'] ?? item['status'] ?? item);
               }
             }
           }
@@ -157,38 +172,64 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
       // 格式3: m.weibo.cn cards 格式 (回退)
       if (posts.isEmpty) {
-        final cards = (data['data']?['cards'] as List?) ?? [];
+        final cards =
+            (data['cards'] as List?) ?? (data['data']?['cards'] as List?) ?? [];
         for (final card in cards) {
           if (card is! Map<String, dynamic>) continue;
           final cardType = card['card_type'];
 
           // 直接包含 mblog 的卡片
           if (cardType == 9 && card['mblog'] != null) {
-            try {
-              final mblog = card['mblog'] as Map<String, dynamic>;
-              if (!WeiboPostModel.isAdPost(mblog)) {
-                posts.add(WeiboPostModel.fromJson(mblog));
-              }
-            } catch (_) {}
+            tryAddPost(card['mblog']);
+          }
+
+          // card_type 11 常见于搜索结果列表，包含 scheme/items
+          if (cardType == 11 && card['itemid'] != null) {
+            tryAddPost(card['status'] ?? card['mblog']);
           }
 
           // card_group 内嵌的卡片（搜索结果常用此结构）
           final cardGroup = card['card_group'] as List?;
           if (cardGroup != null) {
             for (final groupItem in cardGroup) {
-              if (groupItem is Map<String, dynamic> &&
-                  groupItem['card_type'] == 9 &&
-                  groupItem['mblog'] != null) {
-                try {
-                  final mblog = groupItem['mblog'] as Map<String, dynamic>;
-                  if (!WeiboPostModel.isAdPost(mblog)) {
-                    posts.add(WeiboPostModel.fromJson(mblog));
-                  }
-                } catch (_) {}
+              if (groupItem is Map<String, dynamic>) {
+                if (groupItem['card_type'] == 9 && groupItem['mblog'] != null) {
+                  tryAddPost(groupItem['mblog']);
+                }
+                tryAddPost(groupItem['status'] ?? groupItem['mblog']);
               }
             }
           }
         }
+      }
+
+      // 格式4: 递归兜底（接口结构变更时）
+      if (posts.isEmpty) {
+        void walk(dynamic node) {
+          if (node is Map<String, dynamic>) {
+            // 常见微博节点
+            if (node.containsKey('user') &&
+                node.containsKey('id') &&
+                node.containsKey('text')) {
+              tryAddPost(node);
+            }
+            if (node['mblog'] is Map<String, dynamic>) {
+              tryAddPost(node['mblog']);
+            }
+            if (node['status'] is Map<String, dynamic>) {
+              tryAddPost(node['status']);
+            }
+            for (final value in node.values) {
+              walk(value);
+            }
+          } else if (node is List) {
+            for (final item in node) {
+              walk(item);
+            }
+          }
+        }
+
+        walk(data);
       }
 
       emit(SearchResultLoaded(posts: posts, query: event.query));
@@ -205,6 +246,17 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     try {
       final data = await webApi.searchUsers(event.query);
       final List<WeiboUser> users = [];
+      final seenIds = <String>{};
+
+      void tryAddUser(dynamic raw) {
+        if (raw is! Map<String, dynamic>) return;
+        try {
+          final user = UserModel.fromJson(raw);
+          if (user.id.isEmpty || seenIds.contains(user.id)) return;
+          seenIds.add(user.id);
+          users.add(user);
+        } catch (_) {}
+      }
 
       // PC web 格式: { "ok": 1, "data": { "users": [...] } }
       final userList =
@@ -213,11 +265,43 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           (data['data'] as List?) ??
           [];
       for (final item in userList) {
-        if (item is Map<String, dynamic>) {
-          try {
-            users.add(UserModel.fromJson(item));
-          } catch (_) {}
+        tryAddUser(item);
+      }
+
+      if (users.isEmpty) {
+        final dataInner = data['data'];
+        if (dataInner is Map<String, dynamic> && dataInner['list'] is List) {
+          for (final item in dataInner['list'] as List) {
+            if (item is Map<String, dynamic>) {
+              tryAddUser(item['user'] ?? item);
+            }
+          }
         }
+      }
+
+      if (users.isEmpty) {
+        void walk(dynamic node) {
+          if (node is Map<String, dynamic>) {
+            final hasIdentity =
+                node.containsKey('id') &&
+                (node.containsKey('screen_name') || node.containsKey('name'));
+            if (hasIdentity) {
+              tryAddUser(node);
+            }
+            if (node['user'] is Map<String, dynamic>) {
+              tryAddUser(node['user']);
+            }
+            for (final value in node.values) {
+              walk(value);
+            }
+          } else if (node is List) {
+            for (final item in node) {
+              walk(item);
+            }
+          }
+        }
+
+        walk(data);
       }
 
       emit(SearchUserResultLoaded(users: users, query: event.query));

@@ -5,6 +5,7 @@ import 'text_styles.dart';
 /// Material Design 3 主题配置
 class AppTheme {
   AppTheme._();
+  static const double _cornerRadius = 18;
 
   /// 亮色主题
   static ThemeData light({ColorScheme? dynamicScheme, Color? seedColor}) {
@@ -56,8 +57,31 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_cornerRadius),
+        ),
         color: colorScheme.surfaceContainerLowest,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+        ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 2,
@@ -72,7 +96,7 @@ class AppTheme {
         filled: true,
         fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(_cornerRadius + 10),
           borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.symmetric(

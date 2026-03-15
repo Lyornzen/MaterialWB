@@ -4,21 +4,12 @@ class ApiConstants {
 
   // 微博开放平台
   static const String officialBaseUrl = 'https://api.weibo.com/2';
-  static const String oauthAuthorizeUrl =
-      'https://api.weibo.com/oauth2/authorize';
-  static const String oauthAccessTokenUrl =
-      'https://api.weibo.com/oauth2/access_token';
 
   // 网页端 API (m.weibo.cn)
   static const String webBaseUrl = 'https://m.weibo.cn/api';
 
   // PC 网页端 API (weibo.com) — 推荐流、热搜等
   static const String pcWebBaseUrl = 'https://weibo.com';
-
-  // OAuth 配置 —— 替换为你自己的 AppKey
-  static const String appKey = 'YOUR_APP_KEY';
-  static const String appSecret = 'YOUR_APP_SECRET';
-  static const String redirectUri = 'https://api.weibo.com/oauth2/default.html';
 
   // 官方 API 路径
   static const String homeTimeline = '/statuses/home_timeline.json';

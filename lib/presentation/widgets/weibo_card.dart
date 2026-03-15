@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:material_weibo/core/i18n/app_i18n.dart';
 import 'package:material_weibo/domain/entities/weibo_post.dart';
 import 'package:material_weibo/presentation/blocs/favorite/favorite_cubit.dart';
 import 'package:material_weibo/presentation/blocs/history/history_cubit.dart';
@@ -16,6 +17,7 @@ import 'package:timeago/timeago.dart' as timeago;
 
 /// 微博卡片组件
 class WeiboCard extends StatelessWidget {
+  static const double _cornerRadius = 18;
   final WeiboPost post;
   final bool showFullContent;
 
@@ -38,6 +40,9 @@ class WeiboCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_cornerRadius),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -104,7 +109,7 @@ class WeiboCard extends StatelessWidget {
                           ],
                         ),
                         Text(
-                          _formatTime(post.createdAt),
+                          _formatTime(context, post.createdAt),
                           style: textTheme.bodySmall?.copyWith(
                             color: colorScheme.onSurfaceVariant,
                           ),
@@ -130,9 +135,10 @@ class WeiboCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // 微博正文
-                  RichContentText(
-                    htmlText: post.text,
+                  _ExpandablePostText(
+                    htmlText: post.fullText ?? post.text,
                     style: textTheme.bodyMedium,
+                    isExpandedByDefault: showFullContent,
                     maxLines: showFullContent ? null : 6,
                     overflow: showFullContent ? null : TextOverflow.ellipsis,
                   ),
@@ -168,7 +174,7 @@ class WeiboCard extends StatelessWidget {
                         color: colorScheme.surfaceContainerHighest.withValues(
                           alpha: 0.3,
                         ),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(_cornerRadius - 4),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,7 +187,9 @@ class WeiboCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           RichContentText(
-                            htmlText: post.retweetedStatus!.text,
+                            htmlText:
+                                post.retweetedStatus!.fullText ??
+                                post.retweetedStatus!.text,
                             style: textTheme.bodySmall,
                             maxLines: showFullContent ? null : 3,
                             overflow: showFullContent
@@ -307,9 +315,14 @@ class WeiboCard extends StatelessWidget {
     );
   }
 
-  String _formatTime(DateTime dateTime) {
-    timeago.setLocaleMessages('zh', timeago.ZhMessages());
-    return timeago.format(dateTime, locale: 'zh');
+  String _formatTime(BuildContext context, DateTime dateTime) {
+    final locale = context.i18n.isZh ? 'zh' : 'en';
+    if (locale == 'zh') {
+      timeago.setLocaleMessages('zh', timeago.ZhMessages());
+    } else {
+      timeago.setLocaleMessages('en', timeago.EnMessages());
+    }
+    return timeago.format(dateTime, locale: locale);
   }
 
   /// 简单的 HTML 标签剥离
@@ -322,5 +335,71 @@ class WeiboCard extends StatelessWidget {
         .replaceAll('&gt;', '>')
         .replaceAll('&quot;', '"')
         .trim();
+  }
+}
+
+class _ExpandablePostText extends StatefulWidget {
+  final String htmlText;
+  final TextStyle? style;
+  final bool isExpandedByDefault;
+  final int? maxLines;
+  final TextOverflow? overflow;
+
+  const _ExpandablePostText({
+    required this.htmlText,
+    this.style,
+    this.isExpandedByDefault = false,
+    this.maxLines,
+    this.overflow,
+  });
+
+  @override
+  State<_ExpandablePostText> createState() => _ExpandablePostTextState();
+}
+
+class _ExpandablePostTextState extends State<_ExpandablePostText> {
+  late bool _expanded = widget.isExpandedByDefault;
+
+  bool get _canExpand {
+    if (widget.isExpandedByDefault || widget.maxLines == null) return false;
+    final plain = RichContentText.processHtmlToPlainText(widget.htmlText);
+    return plain.length > 130 || plain.contains('\n');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RichContentText(
+          htmlText: widget.htmlText,
+          style: widget.style,
+          maxLines: _expanded ? null : widget.maxLines,
+          overflow: _expanded ? null : widget.overflow,
+        ),
+        if (_canExpand)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: TextButton(
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                foregroundColor: colorScheme.primary,
+              ),
+              onPressed: () => setState(() => _expanded = !_expanded),
+              child: Text(_expanded ? '收起' : '展开全文'),
+            ),
+          ),
+      ],
+    );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:material_weibo/core/constants/login_method.dart';
 import 'package:material_weibo/domain/entities/user.dart';
 
 abstract class AuthState extends Equatable {
@@ -25,12 +26,12 @@ class AuthAuthenticated extends AuthState {
   final String token;
   final WeiboUser? user;
 
-  /// 登录方式: 'oauth' 或 'cookie'
+  /// 登录方式: 'token' 或 'cookie'
   final String loginMethod;
   const AuthAuthenticated({
     required this.token,
     this.user,
-    this.loginMethod = 'oauth',
+    this.loginMethod = LoginMethod.token,
   });
 
   @override

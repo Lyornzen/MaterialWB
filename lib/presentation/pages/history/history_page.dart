@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:material_weibo/core/i18n/app_i18n.dart';
 import 'package:material_weibo/presentation/blocs/history/history_cubit.dart';
+import 'package:material_weibo/presentation/widgets/empty_state.dart';
+import 'package:material_weibo/presentation/widgets/error_widget.dart';
 import 'package:material_weibo/presentation/widgets/weibo_card.dart';
 import 'package:material_weibo/presentation/widgets/loading_indicator.dart';
 
@@ -20,9 +23,10 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final i18n = context.i18n;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('浏览历史'),
+        title: Text(i18n.tr('浏览历史', 'History')),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline),
@@ -34,25 +38,19 @@ class _HistoryPageState extends State<HistoryPage> {
         builder: (context, state) {
           if (state is HistoryLoading) return const LoadingIndicator();
           if (state is HistoryError) {
-            return Center(child: Text(state.message));
+            return AppErrorWidget(
+              message: state.message,
+              onRetry: () => context.read<HistoryCubit>().loadHistory(),
+            );
           }
           if (state is HistoryLoaded) {
             if (state.posts.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.history,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '暂无浏览记录',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
+              return AppEmptyState(
+                icon: Icons.history,
+                title: i18n.tr('暂无浏览记录', 'No browsing history yet'),
+                subtitle: i18n.tr(
+                  '你看过的微博会保存在这里',
+                  'Posts you viewed will be saved here',
                 ),
               );
             }
@@ -71,22 +69,28 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   void _showClearDialog(BuildContext context) {
+    final i18n = context.i18n;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('清除历史'),
-        content: const Text('确定要清除所有浏览历史吗？'),
+        title: Text(i18n.tr('清除历史', 'Clear History')),
+        content: Text(
+          i18n.tr(
+            '确定要清除所有浏览历史吗？',
+            'Are you sure you want to clear all browsing history?',
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
+            child: Text(i18n.tr('取消', 'Cancel')),
           ),
           FilledButton(
             onPressed: () {
               context.read<HistoryCubit>().clearHistory();
               Navigator.pop(ctx);
             },
-            child: const Text('确定'),
+            child: Text(i18n.tr('确定', 'Confirm')),
           ),
         ],
       ),

@@ -1,3 +1,4 @@
+import 'package:material_weibo/core/constants/login_method.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_official_api.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
 import 'package:material_weibo/data/models/user_model.dart';
@@ -22,8 +23,8 @@ class UserRepositoryImpl implements UserRepository {
     required String userId,
   }) async {
     final method = authRepository.getLoginMethod();
-    if (method == 'oauth') {
-      // OAuth 登录 — 使用官方 API
+    if (LoginMethod.usesToken(method)) {
+      // Token 登录 — 使用官方 API
       final data = await officialApi.getUserInfo(userId);
       return UserModel.fromJson(data);
     } else {
@@ -47,37 +48,5 @@ class UserRepositoryImpl implements UserRepository {
         return UserModel.fromJson(webUserInfo);
       }
     }
-  }
-
-  @override
-  Future<List<WeiboUser>> getFollowing({
-    required String token,
-    required String userId,
-    int page = 1,
-    int count = 20,
-  }) async {
-    // TODO: 实现关注列表（需要网页端API补充）
-    return [];
-  }
-
-  @override
-  Future<List<WeiboUser>> getFollowers({
-    required String token,
-    required String userId,
-    int page = 1,
-    int count = 20,
-  }) async {
-    // TODO: 实现粉丝列表
-    return [];
-  }
-
-  @override
-  Future<void> follow({required String token, required String userId}) async {
-    // TODO: 实现关注功能
-  }
-
-  @override
-  Future<void> unfollow({required String token, required String userId}) async {
-    // TODO: 实现取消关注功能
   }
 }

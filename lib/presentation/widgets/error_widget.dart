@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_weibo/core/i18n/app_i18n.dart';
 
 /// 统一错误展示组件
 class AppErrorWidget extends StatelessWidget {
@@ -10,6 +11,7 @@ class AppErrorWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final i18n = context.i18n;
 
     return Center(
       child: Padding(
@@ -19,7 +21,10 @@ class AppErrorWidget extends StatelessWidget {
           children: [
             Icon(Icons.error_outline, size: 64, color: colorScheme.error),
             const SizedBox(height: 16),
-            Text('加载失败', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              i18n.tr('加载失败', 'Loading failed'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             Text(
               message,
@@ -35,7 +40,7 @@ class AppErrorWidget extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh),
-                label: const Text('重试'),
+                label: Text(i18n.tr('重试', 'Retry')),
               ),
             ],
           ],

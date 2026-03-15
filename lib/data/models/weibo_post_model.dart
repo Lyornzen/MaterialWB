@@ -7,6 +7,7 @@ class WeiboPostModel extends WeiboPost {
     required super.id,
     required super.text,
     super.rawText,
+    super.fullText,
     required super.user,
     required super.createdAt,
     super.repostsCount,
@@ -18,9 +19,12 @@ class WeiboPostModel extends WeiboPost {
     super.retweetedStatus,
     super.source,
     super.favorited,
+    super.isLongText,
   });
 
   factory WeiboPostModel.fromJson(Map<String, dynamic> json) {
+    final parsedText = _extractBestText(json);
+
     // 解析图片列表
     List<String> images = [];
     if (json['pic_urls'] != null) {
@@ -115,8 +119,9 @@ class WeiboPostModel extends WeiboPost {
 
     return WeiboPostModel(
       id: (json['id'] ?? json['idstr'] ?? '').toString(),
-      text: json['text'] ?? json['status_text'] ?? '',
+      text: parsedText,
       rawText: json['raw_text'] as String?,
+      fullText: _extractFullText(json),
       user: json['user'] != null
           ? UserModel.fromJson(json['user'])
           : const UserModel(id: '0', screenName: '未知用户', profileImageUrl: ''),
@@ -130,6 +135,10 @@ class WeiboPostModel extends WeiboPost {
       retweetedStatus: retweet,
       source: json['source'] as String?,
       favorited: json['favorited'] as bool?,
+      isLongText:
+          json['isLongText'] == true ||
+          json['is_long_text'] == true ||
+          _extractFullText(json) != null,
     );
   }
 
@@ -138,6 +147,7 @@ class WeiboPostModel extends WeiboPost {
       'id': id,
       'text': text,
       'raw_text': rawText,
+      'full_text': fullText,
       'user': (user as UserModel).toJson(),
       'created_at': createdAt.toIso8601String(),
       'reposts_count': repostsCount,
@@ -148,9 +158,34 @@ class WeiboPostModel extends WeiboPost {
           .toList(),
       'source': source,
       'favorited': favorited,
+      'isLongText': isLongText,
       if (retweetedStatus != null)
         'retweeted_status': (retweetedStatus as WeiboPostModel).toJson(),
     };
+  }
+
+  static String _extractBestText(Map<String, dynamic> json) {
+    return _extractFullText(json) ??
+        (json['text'] ?? json['status_text'] ?? '').toString();
+  }
+
+  static String? _extractFullText(Map<String, dynamic> json) {
+    final candidates = [
+      json['full_text'],
+      json['longTextContent'],
+      json['long_text_content'],
+      json['fullText'],
+      json['text_raw'],
+      json['longText'] is Map<String, dynamic>
+          ? (json['longText'] as Map<String, dynamic>)['content']
+          : null,
+    ];
+    for (final candidate in candidates) {
+      if (candidate is String && candidate.isNotEmpty) {
+        return candidate;
+      }
+    }
+    return null;
   }
 
   /// 微博日期格式解析 (如 "Mon Jan 01 12:00:00 +0800 2024")
@@ -261,7 +296,8 @@ class WeiboPostModel extends WeiboPost {
         final playInfo = item['play_info'];
         if (playInfo != null) {
           final url = playInfo['url'] as String?;
-          if (url != null && url.isNotEmpty) return url;
+          final normalized = _normalizeMediaUrl(url);
+          if (normalized != null) return normalized;
         }
       }
     }
@@ -277,9 +313,12 @@ class WeiboPostModel extends WeiboPost {
           mediaInfo['hevc_mp4_hd'] ??
           mediaInfo['mp4_sd_mp4'] ??
           mediaInfo['mp4_ld_mp4'] ??
+          mediaInfo['h5_url'] ??
+          mediaInfo['video_url'] ??
           mediaInfo['stream_url_hd'] ??
           mediaInfo['stream_url'];
-      if (url != null && (url as String).isNotEmpty) return url;
+      final normalized = _normalizeMediaUrl(url?.toString());
+      if (normalized != null) return normalized;
 
       // 3. 尝试 video_details（部分 PC web 格式）
       final videoDetails = mediaInfo['video_details'] as List?;
@@ -289,13 +328,15 @@ class WeiboPostModel extends WeiboPost {
           // 优先选择 1080p/720p
           if (label.contains('1080') || label.contains('720')) {
             final detailUrl = detail['url'] as String?;
-            if (detailUrl != null && detailUrl.isNotEmpty) return detailUrl;
+            final normalized = _normalizeMediaUrl(detailUrl);
+            if (normalized != null) return normalized;
           }
         }
         // 回退到任意可用的 video_detail
         for (final detail in videoDetails) {
           final detailUrl = detail['url'] as String?;
-          if (detailUrl != null && detailUrl.isNotEmpty) return detailUrl;
+          final normalized = _normalizeMediaUrl(detailUrl);
+          if (normalized != null) return normalized;
         }
       }
     }
@@ -313,7 +354,8 @@ class WeiboPostModel extends WeiboPost {
       if (playbackList != null) {
         for (final pb in playbackList) {
           final url = pb['play_info']?['url'] as String?;
-          if (url != null && url.isNotEmpty) return url;
+          final normalized = _normalizeMediaUrl(url);
+          if (normalized != null) return normalized;
         }
       }
       // 尝试 media_info
@@ -321,21 +363,47 @@ class WeiboPostModel extends WeiboPost {
       if (mediaInfo != null) {
         final url =
             mediaInfo['mp4_720p_mp4'] ??
+            mediaInfo['mp4_1080p_mp4'] ??
             mediaInfo['mp4_hd_mp4'] ??
             mediaInfo['mp4_sd_mp4'] ??
+            mediaInfo['h5_url'] ??
+            mediaInfo['video_url'] ??
             mediaInfo['stream_url_hd'] ??
             mediaInfo['stream_url'];
-        if (url != null && (url as String).isNotEmpty) return url;
+        final normalized = _normalizeMediaUrl(url?.toString());
+        if (normalized != null) return normalized;
       }
       // 直接 stream_url
       final streamUrl = videoInfo['stream_url'] as String?;
-      if (streamUrl != null && streamUrl.isNotEmpty) return streamUrl;
+      final normalized = _normalizeMediaUrl(streamUrl);
+      if (normalized != null) return normalized;
     }
 
     // 部分 mix item 直接带 url 字段
     final directUrl = item['stream_url'] as String?;
-    if (directUrl != null && directUrl.isNotEmpty) return directUrl;
+    final normalized = _normalizeMediaUrl(directUrl);
+    if (normalized != null) return normalized;
 
+    return null;
+  }
+
+  static String? _normalizeMediaUrl(String? url) {
+    if (url == null || url.isEmpty) return null;
+    var value = url.trim().replaceAll(r'\/', '/');
+    if (value.startsWith('//')) {
+      value = 'https:$value';
+    }
+    if (value.startsWith('http://')) {
+      value = value.replaceFirst('http://', 'https://');
+    }
+    if (value.startsWith('https://') &&
+        (value.endsWith('.mp4') ||
+            value.contains('.mp4?') ||
+            value.endsWith('.m3u8') ||
+            value.contains('.m3u8?') ||
+            value.contains('weibocdn.com'))) {
+      return value;
+    }
     return null;
   }
 }

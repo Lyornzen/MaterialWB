@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:material_weibo/core/i18n/app_i18n.dart';
 import 'package:material_weibo/core/di/injection.dart';
 import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
 import 'package:material_weibo/data/models/weibo_post_model.dart';
@@ -22,8 +23,10 @@ class PostDetailPage extends StatefulWidget {
 class _PostDetailPageState extends State<PostDetailPage> {
   WeiboPostModel? _post;
   List<Comment> _comments = [];
+  List<Comment> _rawComments = [];
   bool _isLoading = true;
   String? _error;
+  _CommentSort _sort = _CommentSort.hot;
 
   @override
   void initState() {
@@ -71,14 +74,15 @@ class _PostDetailPageState extends State<PostDetailPage> {
           commentList = innerData['data'] as List?;
         }
         commentList ??= [];
-        _comments = [];
+        _rawComments = [];
         for (final json in commentList) {
           if (json is Map<String, dynamic>) {
             try {
-              _comments.add(CommentModel.fromJson(json));
+              _rawComments.add(CommentModel.fromJson(json));
             } catch (_) {}
           }
         }
+        _applySort();
       } catch (_) {}
 
       setState(() => _isLoading = false);
@@ -90,12 +94,23 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
+  void _applySort() {
+    final list = List<Comment>.from(_rawComments);
+    if (_sort == _CommentSort.hot) {
+      list.sort((a, b) => b.likeCount.compareTo(a.likeCount));
+    } else {
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
+    _comments = list;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final i18n = context.i18n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('微博详情')),
+      appBar: AppBar(title: Text(i18n.tr('微博详情', 'Post Detail'))),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -118,9 +133,34 @@ class _PostDetailPageState extends State<PostDetailPage> {
                   const Divider(height: 1),
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Text(
-                      '评论 (${_comments.length})',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${i18n.tr('评论', 'Comments')} (${_comments.length})',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        SegmentedButton<_CommentSort>(
+                          segments: [
+                            ButtonSegment(
+                              value: _CommentSort.hot,
+                              label: Text(i18n.tr('热度', 'Hot')),
+                            ),
+                            ButtonSegment(
+                              value: _CommentSort.time,
+                              label: Text(i18n.tr('时间', 'Time')),
+                            ),
+                          ],
+                          selected: {_sort},
+                          onSelectionChanged: (selection) {
+                            setState(() {
+                              _sort = selection.first;
+                              _applySort();
+                            });
+                          },
+                        ),
+                      ],
                     ),
                   ),
                   if (_comments.isEmpty)
@@ -128,7 +168,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                       padding: const EdgeInsets.all(32),
                       child: Center(
                         child: Text(
-                          '暂无评论',
+                          i18n.tr('暂无评论', 'No comments yet'),
                           style: TextStyle(color: colorScheme.onSurfaceVariant),
                         ),
                       ),
@@ -157,7 +197,13 @@ class _CommentItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    timeago.setLocaleMessages('zh', timeago.ZhMessages());
+    final i18n = context.i18n;
+    final localeCode = i18n.isZh ? 'zh' : 'en';
+    if (i18n.isZh) {
+      timeago.setLocaleMessages('zh', timeago.ZhMessages());
+    } else {
+      timeago.setLocaleMessages('en', timeago.EnMessages());
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -207,7 +253,7 @@ class _CommentItem extends StatelessWidget {
                       child: Image.network(
                         comment.picUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       ),
                     ),
                   ),
@@ -216,11 +262,34 @@ class _CommentItem extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      timeago.format(comment.createdAt, locale: 'zh'),
+                      timeago.format(comment.createdAt, locale: localeCode),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colorScheme.outline,
                       ),
                     ),
+                    if ((comment.floorNumber ?? 0) > 0) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        i18n.isZh
+                            ? '${comment.floorNumber}楼'
+                            : '#${comment.floorNumber}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.outline,
+                        ),
+                      ),
+                    ],
+                    if (comment.ipLocation != null &&
+                        comment.ipLocation!.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        i18n.isZh
+                            ? 'IP属地 ${comment.ipLocation}'
+                            : 'IP ${comment.ipLocation}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.outline,
+                        ),
+                      ),
+                    ],
                     const SizedBox(width: 16),
                     Icon(
                       Icons.thumb_up_outlined,
@@ -280,7 +349,7 @@ class _CommentItem extends StatelessWidget {
                               child: Image.network(
                                 comment.replyComment!.picUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
+                                errorBuilder: (_, _, _) =>
                                     const SizedBox.shrink(),
                               ),
                             ),
@@ -298,3 +367,5 @@ class _CommentItem extends StatelessWidget {
     );
   }
 }
+
+enum _CommentSort { hot, time }

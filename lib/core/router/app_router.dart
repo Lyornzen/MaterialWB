@@ -31,7 +31,7 @@ class AppRouter {
     '/profile', // 前缀匹配
   };
 
-  /// 需要已登录（OAuth / Cookie）才能访问的路由
+  /// 需要已登录（Token / Cookie）才能访问的路由
   static const _authRequiredPaths = {'/favorites', '/history'};
 
   static final GoRouter router = GoRouter(

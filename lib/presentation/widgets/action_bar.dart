@@ -31,7 +31,7 @@ class ActionBar extends StatelessWidget {
     ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant);
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         _ActionButton(
           icon: Icons.repeat,
@@ -84,20 +84,27 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final background = color.withValues(alpha: 0.08);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: color),
-            if (label.isNotEmpty) ...[
-              const SizedBox(width: 4),
-              Text(label, style: style),
+      borderRadius: BorderRadius.circular(18),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: color),
+              if (label.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Text(label, style: style),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
