@@ -203,6 +203,35 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         }
       }
 
+      // 格式4: 递归兜底（接口结构变更时）
+      if (posts.isEmpty) {
+        void walk(dynamic node) {
+          if (node is Map<String, dynamic>) {
+            // 常见微博节点
+            if (node.containsKey('user') &&
+                node.containsKey('id') &&
+                node.containsKey('text')) {
+              tryAddPost(node);
+            }
+            if (node['mblog'] is Map<String, dynamic>) {
+              tryAddPost(node['mblog']);
+            }
+            if (node['status'] is Map<String, dynamic>) {
+              tryAddPost(node['status']);
+            }
+            for (final value in node.values) {
+              walk(value);
+            }
+          } else if (node is List) {
+            for (final item in node) {
+              walk(item);
+            }
+          }
+        }
+
+        walk(data);
+      }
+
       emit(SearchResultLoaded(posts: posts, query: event.query));
     } catch (e) {
       emit(SearchError(message: e.toString()));
