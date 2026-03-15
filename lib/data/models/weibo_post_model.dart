@@ -7,6 +7,7 @@ class WeiboPostModel extends WeiboPost {
     required super.id,
     required super.text,
     super.rawText,
+    super.fullText,
     required super.user,
     required super.createdAt,
     super.repostsCount,
@@ -18,9 +19,12 @@ class WeiboPostModel extends WeiboPost {
     super.retweetedStatus,
     super.source,
     super.favorited,
+    super.isLongText,
   });
 
   factory WeiboPostModel.fromJson(Map<String, dynamic> json) {
+    final parsedText = _extractBestText(json);
+
     // 解析图片列表
     List<String> images = [];
     if (json['pic_urls'] != null) {
@@ -115,8 +119,9 @@ class WeiboPostModel extends WeiboPost {
 
     return WeiboPostModel(
       id: (json['id'] ?? json['idstr'] ?? '').toString(),
-      text: json['text'] ?? json['status_text'] ?? '',
+      text: parsedText,
       rawText: json['raw_text'] as String?,
+      fullText: _extractFullText(json),
       user: json['user'] != null
           ? UserModel.fromJson(json['user'])
           : const UserModel(id: '0', screenName: '未知用户', profileImageUrl: ''),
@@ -130,6 +135,10 @@ class WeiboPostModel extends WeiboPost {
       retweetedStatus: retweet,
       source: json['source'] as String?,
       favorited: json['favorited'] as bool?,
+      isLongText:
+          json['isLongText'] == true ||
+          json['is_long_text'] == true ||
+          _extractFullText(json) != null,
     );
   }
 
@@ -138,6 +147,7 @@ class WeiboPostModel extends WeiboPost {
       'id': id,
       'text': text,
       'raw_text': rawText,
+      'full_text': fullText,
       'user': (user as UserModel).toJson(),
       'created_at': createdAt.toIso8601String(),
       'reposts_count': repostsCount,
@@ -148,9 +158,34 @@ class WeiboPostModel extends WeiboPost {
           .toList(),
       'source': source,
       'favorited': favorited,
+      'isLongText': isLongText,
       if (retweetedStatus != null)
         'retweeted_status': (retweetedStatus as WeiboPostModel).toJson(),
     };
+  }
+
+  static String _extractBestText(Map<String, dynamic> json) {
+    return _extractFullText(json) ??
+        (json['text'] ?? json['status_text'] ?? '').toString();
+  }
+
+  static String? _extractFullText(Map<String, dynamic> json) {
+    final candidates = [
+      json['full_text'],
+      json['longTextContent'],
+      json['long_text_content'],
+      json['fullText'],
+      json['text_raw'],
+      json['longText'] is Map<String, dynamic>
+          ? (json['longText'] as Map<String, dynamic>)['content']
+          : null,
+    ];
+    for (final candidate in candidates) {
+      if (candidate is String && candidate.isNotEmpty) {
+        return candidate;
+      }
+    }
+    return null;
   }
 
   /// 微博日期格式解析 (如 "Mon Jan 01 12:00:00 +0800 2024")
@@ -278,6 +313,8 @@ class WeiboPostModel extends WeiboPost {
           mediaInfo['hevc_mp4_hd'] ??
           mediaInfo['mp4_sd_mp4'] ??
           mediaInfo['mp4_ld_mp4'] ??
+          mediaInfo['h5_url'] ??
+          mediaInfo['video_url'] ??
           mediaInfo['stream_url_hd'] ??
           mediaInfo['stream_url'];
       final normalized = _normalizeMediaUrl(url?.toString());
@@ -326,8 +363,11 @@ class WeiboPostModel extends WeiboPost {
       if (mediaInfo != null) {
         final url =
             mediaInfo['mp4_720p_mp4'] ??
+            mediaInfo['mp4_1080p_mp4'] ??
             mediaInfo['mp4_hd_mp4'] ??
             mediaInfo['mp4_sd_mp4'] ??
+            mediaInfo['h5_url'] ??
+            mediaInfo['video_url'] ??
             mediaInfo['stream_url_hd'] ??
             mediaInfo['stream_url'];
         final normalized = _normalizeMediaUrl(url?.toString());

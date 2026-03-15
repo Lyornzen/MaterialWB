@@ -7,7 +7,11 @@ abstract class TimelineEvent extends Equatable {
 }
 
 class TimelineRefreshed extends TimelineEvent {
-  const TimelineRefreshed();
+  final TimelineFeedType feedType;
+  const TimelineRefreshed({this.feedType = TimelineFeedType.recommend});
+
+  @override
+  List<Object?> get props => [feedType];
 }
 
 class TimelineLoadMore extends TimelineEvent {
@@ -17,3 +21,5 @@ class TimelineLoadMore extends TimelineEvent {
 class TimelineCacheLoaded extends TimelineEvent {
   const TimelineCacheLoaded();
 }
+
+enum TimelineFeedType { recommend, following }

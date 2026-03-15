@@ -18,11 +18,14 @@ class TimelinePage extends StatefulWidget {
 
 class TimelinePageState extends State<TimelinePage> {
   final _scrollController = ScrollController();
+  TimelineFeedType _selectedFeed = TimelineFeedType.recommend;
 
   @override
   void initState() {
     super.initState();
-    context.read<TimelineBloc>().add(const TimelineRefreshed());
+    context.read<TimelineBloc>().add(
+      TimelineRefreshed(feedType: _selectedFeed),
+    );
     _scrollController.addListener(_onScroll);
   }
 
@@ -54,7 +57,9 @@ class TimelinePageState extends State<TimelinePage> {
       );
     }
     if (mounted) {
-      context.read<TimelineBloc>().add(const TimelineRefreshed());
+      context.read<TimelineBloc>().add(
+        TimelineRefreshed(feedType: _selectedFeed),
+      );
     }
   }
 
@@ -64,6 +69,44 @@ class TimelinePageState extends State<TimelinePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('MaterialWeibo'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: SegmentedButton<TimelineFeedType>(
+                style: ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                ),
+                segments: [
+                  ButtonSegment(
+                    value: TimelineFeedType.recommend,
+                    label: Text(i18n.tr('推荐', 'Recommend')),
+                  ),
+                  ButtonSegment(
+                    value: TimelineFeedType.following,
+                    label: Text(i18n.tr('已关注', 'Following')),
+                  ),
+                ],
+                selected: {_selectedFeed},
+                onSelectionChanged: (selection) {
+                  final selected = selection.first;
+                  if (selected == _selectedFeed) return;
+                  setState(() => _selectedFeed = selected);
+                  context.read<TimelineBloc>().add(
+                    TimelineRefreshed(feedType: selected),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
@@ -79,8 +122,9 @@ class TimelinePageState extends State<TimelinePage> {
           if (state is TimelineError) {
             return AppErrorWidget(
               message: state.message,
-              onRetry: () =>
-                  context.read<TimelineBloc>().add(const TimelineRefreshed()),
+              onRetry: () => context.read<TimelineBloc>().add(
+                TimelineRefreshed(feedType: _selectedFeed),
+              ),
             );
           }
           if (state is TimelineLoaded) {
@@ -96,7 +140,9 @@ class TimelinePageState extends State<TimelinePage> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      i18n.tr('暂无微博', 'No posts yet'),
+                      state.feedType == TimelineFeedType.following
+                          ? i18n.tr('暂无已关注博主微博', 'No following posts yet')
+                          : i18n.tr('暂无微博', 'No posts yet'),
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                   ],
@@ -105,7 +151,9 @@ class TimelinePageState extends State<TimelinePage> {
             }
             return RefreshIndicator(
               onRefresh: () async {
-                context.read<TimelineBloc>().add(const TimelineRefreshed());
+                context.read<TimelineBloc>().add(
+                  TimelineRefreshed(feedType: _selectedFeed),
+                );
               },
               child: ListView.separated(
                 controller: _scrollController,

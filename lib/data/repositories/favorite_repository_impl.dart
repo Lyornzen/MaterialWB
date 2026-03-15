@@ -43,22 +43,40 @@ class FavoriteRepositoryImpl implements FavoriteRepository {
       } else {
         // Cookie 登录 — 使用 PC web API
         final data = await webApi.getFavorites(page: page);
-        // PC web 格式: { "data": [ { status 对象 }, ... ], "total_number": N }
-        // 或 { "data": [{ "status": {...}, "favorited_time": "..." }] }
-        final rawList = (data['data'] as List?) ?? [];
-        final result = rawList.map((item) {
-          final json = item as Map<String, dynamic>;
+        // PC web 可能返回：
+        // 1) { "data": [ ... ] }
+        // 2) { "data": { "list": [ ... ] } }
+        // 3) { "list": [ ... ] }
+        List rawList = [];
+        final dataField = data['data'];
+        if (dataField is List) {
+          rawList = dataField;
+        } else if (dataField is Map<String, dynamic>) {
+          final list = dataField['list'];
+          if (list is List) rawList = list;
+        }
+        if (rawList.isEmpty && data['list'] is List) {
+          rawList = data['list'] as List;
+        }
+
+        final result = <Favorite>[];
+        for (final item in rawList) {
+          if (item is! Map<String, dynamic>) continue;
+          final json = item;
           // PC web 收藏列表直接返回微博对象（非嵌套在 status 中）
           if (json.containsKey('status')) {
-            return FavoriteModel.fromJson(json);
+            result.add(FavoriteModel.fromJson(json));
+            continue;
           }
           // 直接是微博对象
-          return FavoriteModel(
-            id: (json['id'] ?? json['idstr'] ?? '').toString(),
-            post: WeiboPostModel.fromJson(json),
-            favoritedAt: DateTime.now(),
+          result.add(
+            FavoriteModel(
+              id: (json['id'] ?? json['idstr'] ?? '').toString(),
+              post: WeiboPostModel.fromJson(json),
+              favoritedAt: DateTime.now(),
+            ),
           );
-        }).toList();
+        }
         if (page == 1) await cacheFavorites(result);
         return result;
       }

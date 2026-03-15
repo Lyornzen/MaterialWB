@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_weibo/core/di/injection.dart';
 import 'package:material_weibo/core/i18n/app_i18n.dart';
+import 'package:material_weibo/data/datasources/remote/weibo_web_api.dart';
+import 'package:material_weibo/data/models/user_model.dart';
 import 'package:material_weibo/domain/entities/user.dart';
+import 'package:material_weibo/domain/repositories/auth_repository.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_bloc.dart';
 import 'package:material_weibo/presentation/blocs/auth/auth_state.dart';
 import 'package:material_weibo/presentation/pages/timeline/timeline_page.dart';
@@ -160,8 +164,31 @@ class _LoginRequiredPage extends StatelessWidget {
 }
 
 /// 「我的」页面
-class _MePage extends StatelessWidget {
+class _MePage extends StatefulWidget {
   const _MePage();
+
+  @override
+  State<_MePage> createState() => _MePageState();
+}
+
+class _MePageState extends State<_MePage> {
+  Future<WeiboUser?>? _fallbackUserFuture;
+
+  Future<WeiboUser?> _resolveCurrentUser() async {
+    final authRepo = sl<AuthRepository>();
+    final method = authRepo.getLoginMethod();
+    try {
+      if (method == 'cookie') {
+        final data = await sl<WeiboWebApi>().getLoggedInUserInfo();
+        return UserModel.fromJson(data);
+      }
+      final token = await authRepo.getSavedToken();
+      if (token != null && token.isNotEmpty) {
+        return authRepo.getCurrentUser(token);
+      }
+    } catch (_) {}
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -180,15 +207,27 @@ class _MePage extends StatelessWidget {
       body: BlocBuilder<AuthBloc, AuthState>(
         builder: (context, state) {
           final isLoggedIn = state.isLoggedIn;
-          final user = state is AuthAuthenticated ? state.user : null;
+          final authUser = state is AuthAuthenticated ? state.user : null;
+          if (isLoggedIn && authUser == null && _fallbackUserFuture == null) {
+            _fallbackUserFuture = _resolveCurrentUser();
+          }
 
           return ListView(
             children: [
               const SizedBox(height: 16),
               // 用户信息卡片或登录提示
-              isLoggedIn
-                  ? _buildUserCard(context, colorScheme, user)
-                  : _buildGuestCard(context, colorScheme),
+              if (!isLoggedIn)
+                _buildGuestCard(context, colorScheme)
+              else if (authUser != null)
+                _buildUserCard(context, colorScheme, authUser)
+              else
+                FutureBuilder<WeiboUser?>(
+                  future: _fallbackUserFuture,
+                  builder: (context, snapshot) {
+                    final user = snapshot.data;
+                    return _buildUserCard(context, colorScheme, user);
+                  },
+                ),
               const SizedBox(height: 16),
               if (isLoggedIn) ...[
                 _buildMenuItem(
