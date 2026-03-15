@@ -33,14 +33,10 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
     try {
       _activeFeed = event.feedType;
       final token = await _getToken();
-      final List<WeiboPost> posts = switch (_activeFeed) {
-        TimelineFeedType.recommend => await timelineRepository
-            .getRecommendTimeline(),
-        TimelineFeedType.following =>
-          token != null
-              ? await timelineRepository.getHomeTimeline(token: token)
-              : <WeiboPost>[],
-      };
+      final List<WeiboPost> posts = await _loadFeed(
+        feedType: _activeFeed,
+        token: token,
+      );
       emit(
         TimelineLoaded(
           posts: posts,
@@ -79,21 +75,12 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
     try {
       final nextPage = currentState.currentPage + 1;
       final token = await _getToken();
-
-      final List<WeiboPost> newPosts = switch (currentState.feedType) {
-        TimelineFeedType.recommend => await timelineRepository
-            .getRecommendTimeline(page: nextPage),
-        TimelineFeedType.following =>
-          token != null
-              ? await timelineRepository.getHomeTimeline(
-                  token: token,
-                  page: nextPage,
-                  maxId: currentState.posts.isNotEmpty
-                      ? currentState.posts.last.id
-                      : null,
-                )
-              : <WeiboPost>[],
-      };
+      final List<WeiboPost> newPosts = await _loadFeed(
+        feedType: currentState.feedType,
+        token: token,
+        page: nextPage,
+        maxId: currentState.posts.isNotEmpty ? currentState.posts.last.id : null,
+      );
 
       emit(
         currentState.copyWith(
@@ -121,5 +108,40 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
         ),
       );
     }
+  }
+
+  Future<List<WeiboPost>> _loadFeed({
+    required TimelineFeedType feedType,
+    required String? token,
+    int page = 1,
+    String? maxId,
+  }) async {
+    if (feedType == TimelineFeedType.recommend) {
+      return timelineRepository.getRecommendTimeline(page: page);
+    }
+
+    if (token != null) {
+      return timelineRepository.getHomeTimeline(
+        token: token,
+        page: page,
+        maxId: maxId,
+      );
+    }
+
+    // Cookie/游客模式下没有官方关注流时，从推荐流中筛出已关注作者。
+    final collected = <WeiboPost>[];
+    final seenIds = <String>{};
+    for (var offset = 0; offset < 4 && collected.length < 20; offset++) {
+      final recommendPage = ((page - 1) * 4) + offset + 1;
+      final items = await timelineRepository.getRecommendTimeline(
+        page: recommendPage,
+      );
+      for (final post in items) {
+        if (post.user.following == true && seenIds.add(post.id)) {
+          collected.add(post);
+        }
+      }
+    }
+    return collected;
   }
 }

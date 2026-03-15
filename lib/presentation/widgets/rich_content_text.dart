@@ -1,9 +1,12 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 import 'package:url_launcher/url_launcher.dart';
 
-/// 富文本内容组件 - 支持话题、@提及、链接、emoji 的可点击渲染
+/// 富文本内容组件 - 支持微博表情、话题、@提及、链接
 class RichContentText extends StatelessWidget {
   final String htmlText;
   final TextStyle? style;
@@ -24,10 +27,8 @@ class RichContentText extends StatelessWidget {
     final defaultStyle = style ?? Theme.of(context).textTheme.bodyMedium!;
     final linkStyle = defaultStyle.copyWith(color: colorScheme.primary);
 
-    final spans = _buildSpans(context, defaultStyle, linkStyle);
-
     return Text.rich(
-      TextSpan(children: spans),
+      TextSpan(children: _buildSpans(context, defaultStyle, linkStyle)),
       maxLines: maxLines,
       overflow: overflow,
     );
@@ -38,55 +39,124 @@ class RichContentText extends StatelessWidget {
     TextStyle defaultStyle,
     TextStyle linkStyle,
   ) {
-    // 先将 <img> 标签中的 alt 属性提取为文本（保留 emoji 如 [笑cry]）
-    // 然后去除剩余 HTML 标签并解码实体
-    final plainText = _processHtmlToPlainText(htmlText);
+    final fragment = html_parser.parseFragment(htmlText);
     final spans = <InlineSpan>[];
+    for (final node in fragment.nodes) {
+      spans.addAll(_buildNodeSpans(context, node, defaultStyle, linkStyle));
+    }
+    return spans;
+  }
 
-    // 匹配: emoji [xxx]、话题 #...#、@用户名、URL
+  List<InlineSpan> _buildNodeSpans(
+    BuildContext context,
+    dom.Node node,
+    TextStyle defaultStyle,
+    TextStyle linkStyle,
+  ) {
+    if (node is dom.Text) {
+      return _buildTokenizedText(context, node.text, defaultStyle, linkStyle);
+    }
+
+    if (node is! dom.Element) {
+      return const [];
+    }
+
+    if (node.localName == 'br') {
+      return [TextSpan(text: '\n', style: defaultStyle)];
+    }
+
+    if (node.localName == 'img') {
+      return [_buildEmojiSpan(node, defaultStyle)];
+    }
+
+    if (node.localName == 'a') {
+      final href = node.attributes['href'];
+      final text = node.text;
+      if (href != null && href.isNotEmpty) {
+        return [
+          TextSpan(
+            text: text.isNotEmpty ? text : '网页链接',
+            style: linkStyle,
+            recognizer: TapGestureRecognizer()..onTap = () => _onLinkTap(href),
+          ),
+        ];
+      }
+    }
+
+    final spans = <InlineSpan>[];
+    for (final child in node.nodes) {
+      spans.addAll(_buildNodeSpans(context, child, defaultStyle, linkStyle));
+    }
+    return spans;
+  }
+
+  InlineSpan _buildEmojiSpan(dom.Element element, TextStyle defaultStyle) {
+    final alt = element.attributes['alt'] ?? '';
+    final src = element.attributes['src'] ?? '';
+    final normalizedSrc = src.startsWith('//') ? 'https:$src' : src;
+    if (normalizedSrc.isEmpty) {
+      return TextSpan(text: alt, style: defaultStyle);
+    }
+
+    return WidgetSpan(
+      alignment: PlaceholderAlignment.middle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 1),
+        child: CachedNetworkImage(
+          imageUrl: normalizedSrc,
+          width: (defaultStyle.fontSize ?? 14) * 1.35,
+          height: (defaultStyle.fontSize ?? 14) * 1.35,
+          fit: BoxFit.contain,
+          errorWidget: (_, __, ___) => Text(alt, style: defaultStyle),
+        ),
+      ),
+    );
+  }
+
+  List<InlineSpan> _buildTokenizedText(
+    BuildContext context,
+    String plainText,
+    TextStyle defaultStyle,
+    TextStyle linkStyle,
+  ) {
+    final spans = <InlineSpan>[];
     final regex = RegExp(
-      r'(\[[^\[\]]+\])|(#[^#]+#)|(@[\w\u4e00-\u9fff\-]+)|(https?://[^\s<>\u4e00-\u9fff]+)',
+      r'(#[^#\n]+#)|(@[\w\u4e00-\u9fff\-\_]+)|(https?://[^\s<>\u4e00-\u9fff]+)',
     );
 
-    int lastEnd = 0;
+    var lastEnd = 0;
     for (final match in regex.allMatches(plainText)) {
-      // 添加普通文本
       if (match.start > lastEnd) {
         spans.add(
           TextSpan(
-            text: plainText.substring(lastEnd, match.start),
+            text: _decodeEntities(plainText.substring(lastEnd, match.start)),
             style: defaultStyle,
           ),
         );
       }
 
       final matchStr = match.group(0)!;
-      if (match.group(1) != null) {
-        // Emoji 如 [笑cry] — 用普通样式显示
-        spans.add(TextSpan(text: matchStr, style: defaultStyle));
-      } else if (matchStr.startsWith('#')) {
-        // 话题
+      if (matchStr.startsWith('#')) {
         final topic = matchStr.substring(1, matchStr.length - 1);
         spans.add(
           TextSpan(
-            text: matchStr,
+            text: _decodeEntities(matchStr),
             style: linkStyle,
             recognizer: TapGestureRecognizer()
               ..onTap = () => _onTopicTap(context, topic),
           ),
         );
       } else if (matchStr.startsWith('@')) {
-        // @提及
+        final username = matchStr.substring(1);
         spans.add(
           TextSpan(
-            text: matchStr,
+            text: _decodeEntities(matchStr),
             style: linkStyle,
             recognizer: TapGestureRecognizer()
-              ..onTap = () => _onMentionTap(context, matchStr.substring(1)),
+              ..onTap = () => _onMentionTap(context, username),
           ),
         );
       } else {
-        // URL 链接
         spans.add(
           TextSpan(
             text: '网页链接',
@@ -96,13 +166,16 @@ class RichContentText extends StatelessWidget {
           ),
         );
       }
+
       lastEnd = match.end;
     }
 
-    // 添加剩余文本
     if (lastEnd < plainText.length) {
       spans.add(
-        TextSpan(text: plainText.substring(lastEnd), style: defaultStyle),
+        TextSpan(
+          text: _decodeEntities(plainText.substring(lastEnd)),
+          style: defaultStyle,
+        ),
       );
     }
 
@@ -118,42 +191,36 @@ class RichContentText extends StatelessWidget {
   }
 
   void _onLinkTap(String url) async {
-    final uri = Uri.tryParse(url);
+    final normalizedUrl = url.startsWith('//') ? 'https:$url' : url;
+    final uri = Uri.tryParse(normalizedUrl);
     if (uri != null && await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
   /// 将 HTML 转为纯文本，但保留 emoji 的 alt 文本（如 [笑cry]）
-  /// 微博 emoji 格式: <span class="url-icon"><img alt="[emoji]" src="..."></span>
-  /// 或直接: <img alt="[emoji]" src="...">
   static String processHtmlToPlainText(String htmlString) {
-    return _processHtmlToPlainText(htmlString);
+    var result = htmlString
+        .replaceAllMapped(
+          RegExp(r'<img[^>]*alt="([^"]*)"[^>]*/?>'),
+          (match) => match.group(1) ?? '',
+        )
+        .replaceAllMapped(
+          RegExp(r"<img[^>]*alt='([^']*)'[^>]*/?>"),
+          (match) => match.group(1) ?? '',
+        );
+    result = result.replaceAll(RegExp(r'<br\s*/?>'), '\n');
+    result = result.replaceAll(RegExp(r'<[^>]*>'), '');
+    return _decodeEntities(result).trim();
   }
 
-  static String _processHtmlToPlainText(String htmlString) {
-    // Step 1: 将 <img> 标签替换为其 alt 属性值
-    // 匹配 <img ... alt="[xxx]" ... > 或 <img ... alt="[xxx]" ... />
-    var result = htmlString.replaceAllMapped(
-      RegExp(r'<img[^>]*alt="([^"]*)"[^>]*/?>'),
-      (match) => match.group(1) ?? '',
-    );
-
-    // Step 2: 将 <br> / <br/> 替换为换行
-    result = result.replaceAll(RegExp(r'<br\s*/?>'), '\n');
-
-    // Step 3: 去除剩余 HTML 标签
-    result = result.replaceAll(RegExp(r'<[^>]*>'), '');
-
-    // Step 4: 解码 HTML 实体
-    result = result
+  static String _decodeEntities(String input) {
+    return input
         .replaceAll('&nbsp;', ' ')
         .replaceAll('&amp;', '&')
         .replaceAll('&lt;', '<')
         .replaceAll('&gt;', '>')
         .replaceAll('&quot;', '"')
         .replaceAll('&#39;', "'");
-
-    return result.trim();
   }
 }

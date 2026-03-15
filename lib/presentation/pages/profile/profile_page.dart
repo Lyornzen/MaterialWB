@@ -14,6 +14,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  static const double _cornerRadius = 18;
   late final ProfileCubit _profileCubit;
   bool? _isFollowing;
 
@@ -43,41 +44,15 @@ class _ProfilePageState extends State<ProfilePage> {
               _isFollowing ??= state.user.following;
               return CustomScrollView(
                 slivers: [
-                  SliverAppBar.large(
-                    title: Text(state.user.screenName),
-                    actions: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: _isFollowing == true
-                            ? OutlinedButton.icon(
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('已关注')),
-                                  );
-                                },
-                                icon: const Icon(Icons.check, size: 18),
-                                label: const Text('已关注'),
-                              )
-                            : FilledButton.icon(
-                                onPressed: () {
-                                  setState(() => _isFollowing = true);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('关注成功（本地预览）'),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.person_add_alt_1),
-                                label: const Text('关注'),
-                              ),
-                      ),
-                    ],
-                  ),
+                  SliverAppBar.large(title: Text(state.user.screenName)),
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Card(
                         elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(_cornerRadius),
+                        ),
                         color: colorScheme.surfaceContainerHighest.withValues(
                           alpha: 0.3,
                         ),
@@ -87,6 +62,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   CircleAvatar(
                                     radius: 36,
@@ -127,9 +103,69 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                child: _isFollowing == true
+                                    ? OutlinedButton.icon(
+                                        style: OutlinedButton.styleFrom(
+                                          minimumSize: const Size.fromHeight(
+                                            46,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              _cornerRadius,
+                                            ),
+                                          ),
+                                        ),
+                                        onPressed: () {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('已关注'),
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.check, size: 18),
+                                        label: const Text('已关注'),
+                                      )
+                                    : FilledButton.icon(
+                                        style: FilledButton.styleFrom(
+                                          minimumSize: const Size.fromHeight(
+                                            46,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              _cornerRadius,
+                                            ),
+                                          ),
+                                        ),
+                                        onPressed: () {
+                                          setState(() => _isFollowing = true);
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('关注成功（本地预览）'),
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(
+                                          Icons.person_add_alt_1,
+                                        ),
+                                        label: const Text('关注'),
+                                      ),
+                              ),
                               if (state.user.description != null &&
                                   state.user.description!.isNotEmpty) ...[
                                 const SizedBox(height: 12),
+                                Text(
+                                  '简介',
+                                  style: Theme.of(context).textTheme.labelLarge
+                                      ?.copyWith(color: colorScheme.primary),
+                                ),
+                                const SizedBox(height: 6),
                                 Text(
                                   state.user.description!,
                                   style: Theme.of(context).textTheme.bodyLarge,

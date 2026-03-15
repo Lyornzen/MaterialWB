@@ -76,6 +76,14 @@ class TimelinePageState extends State<TimelinePage> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: SegmentedButton<TimelineFeedType>(
+                style: ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                ),
                 segments: [
                   ButtonSegment(
                     value: TimelineFeedType.recommend,
